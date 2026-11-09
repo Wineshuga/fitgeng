@@ -11,12 +11,13 @@ export interface NavItem {
 
 /** Player app tabs. The first five form the mobile bottom bar. */
 export const playerNav: NavItem[] = [
-  { label: 'Home', to: '/app', icon: 'home' },
-  { label: 'Discover', to: '/app/discover', icon: 'compass' },
-  { label: 'My Groups', to: '/app/groups', icon: 'users' },
-  { label: 'Schedule', to: '/app/schedule', icon: 'calendar' },
-  { label: 'Profile', to: '/app/profile', icon: 'user' },
-  { label: 'Payments', to: '/app/payments', icon: 'wallet' },
+  { label: 'Home', to: '/player', icon: 'home' },
+  // Discover is a public, search-indexed page shared by visitors and players.
+  { label: 'Discover', to: '/discover', icon: 'compass' },
+  { label: 'My Groups', to: '/player/groups', icon: 'users' },
+  { label: 'Schedule', to: '/player/schedule', icon: 'calendar' },
+  { label: 'Profile', to: '/player/profile', icon: 'user' },
+  { label: 'Payments', to: '/player/payments', icon: 'wallet' },
 ];
 
 /**

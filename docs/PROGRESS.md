@@ -7,13 +7,73 @@ Tracks completed work, remaining work, known issues and decisions made during im
 | Phase | Status |
 |-------|--------|
 | 1. Foundation | ✅ Complete (2026-11-09), Docker Compose stack verified |
-| 2. Auth & permissions | ⏭ Next |
+| **Frontend migration: Vite → Next.js** | 🔄 In progress: Stage 2 of 7 done (see below) |
+| 2. Auth & permissions | ⏭ After the migration |
 | 3a. Orgs, roster, groups, teams, memberships | Not started |
 | 3b. Schedules, sessions, attendance | Not started |
 | 3c. Fees & payments | Not started |
 | 4. Player experience | Not started |
 | 5. Community | Not started |
 | 6. Hardening & deploy prep | Not started |
+
+---
+
+## Frontend migration: React + Vite → Next.js 16 (App Router)
+
+Goal: server-rendered, indexable public pages; Express stays the only backend. The plan (audit, route map, risks) was reviewed on 2026-11-09.
+
+| Stage | Status |
+|-------|--------|
+| 1. Audit & plan | ✅ |
+| 2. Next.js foundation | ✅ 2026-11-10 |
+| 3. Route migration (`/player`, `/manage`, auth shells, error/loading) | ⏭ Next |
+| 4. SEO (metadata, JSON-LD, sitemap, robots, Sports pages) | Pending |
+| 5. Backend integration (server fetch layer, session check) | Pending |
+| 6. Docker production image + Nginx reverse proxy | Pending |
+| 7. Validation | Pending |
+
+**Decisions awaiting confirmation** (needed from Stage 3 on): single `/manage` dashboard vs `/coach` + `/organiser`; refresh cookie `Path=/; SameSite=Lax` + `GET /auth/session`; pulling the read-only Sports catalogue forward; Nginx in front of Next.js in production. Decision 5 (colours in `theme.ts`) has been implemented.
+
+### Stage 2 delivered
+- **Toolchain:**
+  - Next.js 16.4.6 pinned (Turbopack builds), Tailwind 4 via `@tailwindcss/postcss`, `next/jest` (SWC)
+  - Vite, React Router, ts-jest (frontend) and identity-obj-proxy removed
+  - `@next/eslint-plugin-next` rules (recommended + core web vitals) added to the flat config
+- **Config:**
+  - `next.config.ts`: standalone output traced from the repo root, repo-root `.env` loaded, `/api` rewrite in dev only (via `API_PROXY_TARGET`), Cloudinary image host
+- **Colours in one file:** `packages/shared/src/theme.ts`
+  - holds the palette and light/dark surface roles; the root layout renders it as CSS variables
+  - `globals.css` maps the variables to semantic Tailwind classes; the favicon (`app/icon.tsx`) and `viewport.themeColor` read the same file
+  - brand colours were removed from `brand.ts`
+  - all components moved off `slate-*`/`red-*`/… onto semantic tokens with identical rendered values
+  - a design-token guard test fails on any raw hex value or palette class in `src`
+- **Hydration safety:**
+  - a blocking `themeInitScript` sets the `dark` class before paint
+  - ThemeContext and uiSlice no longer read `localStorage` during render
+  - ThemeToggle picks its icon with CSS, so server and client output match
+  - `StoreProvider` creates one store per instance and restores and persists the active organisation after mount
+- **Rendering split:**
+  - root layout, public layout, landing page, 404 and player shell are Server Components
+  - `ThemeToggle`, `ApiStatus`, `NavItemLink` (active state), `ManageLayout` (drawer) and providers are the only Client Components
+- **Fonts:** `next/font` self-hosts Inter, so the Google Fonts request is gone.
+- **Paths:** player routes move from `/app/*` to `/player/*`, and Discover becomes public `/discover` (routes themselves come in Stage 3).
+- **Env and Docker:**
+  - `VITE_*` renamed to `NEXT_PUBLIC_*`, new `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_BRAND_DESCRIPTION`
+  - frontend dev port moved from 5173 to 3000 (Compose, `APP_URL`, backend CORS default)
+  - dev container keeps `.next` in a container volume and runs `next dev --webpack` with polling
+
+### Stage 2 verification
+- Frontend tests: 61 passing (was 24). Every previous assertion is kept. New tests cover server-render storage access, per-instance stores, active nav state, capability-filtered drawer, theme serialisation and override validation, and the token guard.
+- Backend tests: 22 passing, unchanged.
+- `tsc` (all workspaces), ESLint: clean. `next build`: succeeds; `/` is prerendered with hourly revalidation.
+- Standalone server (`.next/standalone/apps/frontend/server.js`): HTML contains the landing `<h1>`, `<title>`, theme CSS variables and the theme script; `/nope` returns 404; `/icon` returns a PNG; no `X-Powered-By` header; Inter is self-hosted.
+- Docker dev: frontend container serves `/` (200) and proxies `/api/v1/health` to Express (`mongo: up, redis: up`). Hot reload from a host edit took about 10 s.
+
+### Known issues (migration)
+- **Production frontend image is broken until Stage 6.** The Dockerfile's `build`/`prod` stages still target Vite and static Nginx. The dev stage works.
+- `/login`, `/register`, `/discover`, `/player/*` and `/manage/*` return 404 until Stage 3. The layouts exist and are tested.
+- Turbopack doesn't detect bind-mount changes in Docker on Windows, so the container uses webpack (`dev:docker`). Local `npm run dev` still uses Turbopack.
+- Next warns about a slow filesystem for `.next/dev` inside the container on Windows. It works, but first compiles take a few seconds.
 
 ---
 

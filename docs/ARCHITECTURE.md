@@ -1,6 +1,8 @@
 # FitGeng — Architecture Proposal (MVP)
 
 > Status: **APPROVED** (product decisions in §9). Implementation in progress; see `docs/PROGRESS.md`.
+>
+> **Frontend migration in progress (2026-11-10):** the React + Vite SPA is moving to **Next.js 16 (App Router)** for server-rendered, indexable public pages. Express remains the only backend. Sections describing the frontend (D13, §2, §6.4, §6.6) will be revised when the migration's open decisions are confirmed. Until then, `docs/PROGRESS.md` tracks the migration.
 > Last updated: 2026-11-09
 
 ---
@@ -25,7 +27,7 @@
 | D14 | **Background jobs run in-process** with `node-cron` and a Redis `SET NX` lock (lock skipped if Redis is down and there is a single instance). | Enough for MVP volumes. BullMQ can replace it later without changing services. |
 | D15 | **Time zones**: all instants stored in UTC. Recurring times are stored as local wall-clock time plus an IANA zone (`Africa/Lagos` by default) and converted with **Luxon**. | Correct handling even if the platform expands to zones that use daylight saving. |
 | D16 | **File uploads** go through a `StorageProvider` interface (`upload`, `delete`, `getUrl`). Production uses the **Cloudinary** driver. A **local** driver (Docker volume) is used in dev and tests when no Cloudinary credentials are set. The backend validates each file (magic bytes, 5 MB limit, image types only), re-encodes it with `sharp` (strips EXIF), then hands it to the provider. Documents store `{ provider, key, url }`, not just a URL, so files can be deleted or migrated later. | Cloudinary from the first deployment (decision Q5). Changing provider means adding one driver file and changing one env var. |
-| D17 | **Branding config** (name, colours, logo, support email) lives in `packages/shared/src/brand.ts` with env overrides. Frontend colours are CSS variables that Tailwind consumes. | Rebranding means editing config, not components or business logic. |
+| D17 | **Brand identity** (name, copy, logo, support email) lives in `packages/shared/src/brand.ts`. **All colours** live in `packages/shared/src/theme.ts` (palette plus light/dark surface roles). Both accept env overrides. The frontend renders the theme as CSS variables that Tailwind exposes as semantic classes; the favicon, theme colour and (later) emails read the same file. A test blocks raw hex values and palette classes in components. *(Revised 2026-11-10 during the Next.js migration.)* | Rebranding or recolouring means editing one config file, not components or business logic. |
 
 ---
 

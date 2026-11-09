@@ -28,7 +28,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  APP_URL: z.url().default('http://localhost:5173'),
+  APP_URL: z.url().default('http://localhost:3000'),
   CORS_ORIGINS: csv,
   /** Number of reverse proxies in front of the API (Nginx = 1). Used for client IPs. */
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),

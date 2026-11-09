@@ -3,6 +3,9 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 /**
  * Global UI state that several parts of the app need. Server data belongs in
  * RTK Query, not here.
+ *
+ * The initial state is deterministic (no browser storage reads), so server and
+ * client renders match. StoreProvider restores persisted values after mount.
  */
 export interface UiState {
   /** Organisation currently selected in the management dashboard. */
@@ -10,20 +13,12 @@ export interface UiState {
   mobileNavOpen: boolean;
 }
 
-const ACTIVE_ORG_KEY = 'fg:activeOrgId';
+export const ACTIVE_ORG_KEY = 'fg:activeOrgId';
 
-function readActiveOrg(): string | null {
-  try {
-    return localStorage.getItem(ACTIVE_ORG_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export const initialUiState = (): UiState => ({
-  activeOrgId: readActiveOrg(),
+export const initialUiState: UiState = {
+  activeOrgId: null,
   mobileNavOpen: false,
-});
+};
 
 export const uiSlice = createSlice({
   name: 'ui',
@@ -39,4 +34,3 @@ export const uiSlice = createSlice({
 });
 
 export const { setActiveOrg, setMobileNavOpen } = uiSlice.actions;
-export { ACTIVE_ORG_KEY };

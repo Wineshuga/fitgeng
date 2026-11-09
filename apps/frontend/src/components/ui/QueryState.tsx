@@ -1,3 +1,5 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import type { SerializedError } from '@reduxjs/toolkit';
@@ -27,7 +29,7 @@ interface QueryStateProps<T> {
 }
 
 /**
- * Standard loading, error, empty and success rendering for data views
+ * Standard loading, error, empty and success rendering for client-fetched data
  * (architecture §6.4), so every feature handles all four states the same way.
  */
 export function QueryState<T>({ isLoading, error, data, isEmpty, empty, onRetry, children }: QueryStateProps<T>) {
@@ -40,8 +42,8 @@ export function QueryState<T>({ isLoading, error, data, isEmpty, empty, onRetry,
   }
   if (error || data === undefined) {
     return (
-      <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900 dark:bg-red-950/40">
-        <p className="text-sm text-red-700 dark:text-red-300">{getErrorMessage(error)}</p>
+      <div role="alert" className="rounded-2xl border border-danger-line bg-danger-soft p-6 text-center">
+        <p className="text-sm text-danger">{getErrorMessage(error)}</p>
         {onRetry && (
           <Button variant="secondary" size="sm" className="mt-4" onClick={onRetry}>
             Try again
@@ -51,7 +53,7 @@ export function QueryState<T>({ isLoading, error, data, isEmpty, empty, onRetry,
     );
   }
   if (isEmpty?.(data)) {
-    return <>{empty ?? <p className="py-12 text-center text-sm text-slate-500">Nothing here yet.</p>}</>;
+    return <>{empty ?? <p className="py-12 text-center text-sm text-fg-subtle">Nothing here yet.</p>}</>;
   }
   return <>{children(data)}</>;
 }

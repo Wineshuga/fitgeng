@@ -11,12 +11,12 @@ COPY apps/frontend/package.json apps/frontend/
 FROM base AS deps
 RUN npm ci --workspace @fitgeng/frontend --workspace @fitgeng/shared --include-workspace-root
 
-# ---- development: Vite dev server, source bind-mounted by docker-compose ----
+# ---- development: Next.js dev server, source bind-mounted by docker-compose ----
 FROM deps AS dev
 COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/frontend apps/frontend
-EXPOSE 5173
+EXPOSE 3000
 CMD ["npm", "run", "dev", "-w", "@fitgeng/frontend"]
 
 # ---- build static assets ----

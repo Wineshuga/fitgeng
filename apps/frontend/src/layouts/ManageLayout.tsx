@@ -1,59 +1,60 @@
-import { useEffect } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+'use client';
+
+import { useEffect, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import type { Capability } from '@fitgeng/shared';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Icon } from '@/components/Icon';
+import { NavItemLink } from '@/components/NavItemLink';
 import { filterNav, manageNav } from '@/routes/navigation';
 import { useAppDispatch, useAppSelector } from '@/hooks/store';
 import { setMobileNavOpen } from '@/store/uiSlice';
-import { cn } from '@/utils/cn';
 
 interface ManageLayoutProps {
-  /** Comes from the auth state from Phase 2. Until then the full menu is shown. */
+  children: ReactNode;
+  /** From the server-side session from Phase 2. Until then the full menu is shown. */
   capabilities?: readonly Capability[];
 }
 
-/** Coach and organiser dashboard shell: sidebar on desktop, slide-over drawer on mobile. */
-export function ManageLayout({ capabilities = ['coach', 'organiser'] }: ManageLayoutProps) {
+/**
+ * Coach and organiser dashboard shell: sidebar on desktop, slide-over drawer on
+ * mobile. A Client Component because the drawer has state and closes on navigation.
+ */
+export function ManageLayout({ children, capabilities = ['coach', 'organiser'] }: ManageLayoutProps) {
   const dispatch = useAppDispatch();
   const open = useAppSelector((s) => s.ui.mobileNavOpen);
-  const location = useLocation();
+  const pathname = usePathname();
   const items = filterNav(manageNav, capabilities);
 
   // Close the drawer after navigating.
   useEffect(() => {
     dispatch(setMobileNavOpen(false));
-  }, [location.pathname, dispatch]);
+  }, [pathname, dispatch]);
 
   const nav = (
     <nav aria-label="Management" className="flex flex-col gap-1 p-3">
       {items.map((item) => (
-        <NavLink
+        <NavItemLink
           key={item.to}
-          to={item.to}
-          end={item.to === '/manage'}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
-            )
-          }
+          href={item.to}
+          exact={item.to === '/manage'}
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+          activeClassName="bg-brand-600 text-on-brand shadow-sm"
+          inactiveClassName="text-fg-muted hover:bg-surface-muted"
         >
           <Icon name={item.icon} />
           {item.label}
-        </NavLink>
+        </NavItemLink>
       ))}
     </nav>
   );
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[16rem_1fr]">
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-slate-200 bg-white md:flex dark:border-slate-800 dark:bg-slate-900">
+      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface md:flex">
         <div className="flex h-16 items-center px-5">
-          <BrandLogo to="/manage" />
+          <BrandLogo href="/manage" />
         </div>
         <div className="flex-1 overflow-y-auto">{nav}</div>
       </aside>
@@ -62,17 +63,17 @@ export function ManageLayout({ capabilities = ['coach', 'organiser'] }: ManageLa
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <button
             type="button"
-            className="absolute inset-0 bg-slate-950/50"
+            className="absolute inset-0 bg-overlay"
             aria-label="Close navigation"
             onClick={() => dispatch(setMobileNavOpen(false))}
           />
-          <div className="absolute inset-y-0 left-0 w-72 overflow-y-auto bg-white shadow-xl dark:bg-slate-900">
+          <div className="absolute inset-y-0 left-0 w-72 overflow-y-auto bg-surface shadow-xl">
             <div className="flex h-16 items-center justify-between px-5">
-              <BrandLogo to="/manage" />
+              <BrandLogo href="/manage" />
               <button
                 type="button"
                 aria-label="Close navigation"
-                className="grid size-10 place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="grid size-10 place-items-center rounded-xl hover:bg-surface-muted"
                 onClick={() => dispatch(setMobileNavOpen(false))}
               >
                 <Icon name="close" />
@@ -84,11 +85,11 @@ export function ManageLayout({ capabilities = ['coach', 'organiser'] }: ManageLa
       )}
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-slate-200/70 bg-white/85 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/85">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line/70 bg-surface/85 px-4 backdrop-blur">
           <button
             type="button"
             aria-label="Open navigation"
-            className="grid size-10 place-items-center rounded-xl hover:bg-slate-100 md:hidden dark:hover:bg-slate-800"
+            className="grid size-10 place-items-center rounded-xl hover:bg-surface-muted md:hidden"
             onClick={() => dispatch(setMobileNavOpen(true))}
           >
             <Icon name="menu" />
@@ -96,9 +97,7 @@ export function ManageLayout({ capabilities = ['coach', 'organiser'] }: ManageLa
           <div className="flex-1" />
           <ThemeToggle />
         </header>
-        <main className="flex-1 p-4 md:p-8">
-          <Outlet />
-        </main>
+        <main className="flex-1 p-4 md:p-8">{children}</main>
       </div>
     </div>
   );

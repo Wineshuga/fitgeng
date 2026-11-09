@@ -13,11 +13,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-900/20',
-  secondary:
-    'bg-white text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800',
-  ghost: 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
-  danger: 'bg-red-600 text-white hover:bg-red-700',
+  primary: 'bg-brand-600 text-on-brand hover:bg-brand-700 shadow-sm shadow-brand-900/20',
+  secondary: 'bg-surface text-fg ring-1 ring-line hover:bg-surface-muted',
+  ghost: 'text-fg-muted hover:bg-surface-muted',
+  danger: 'bg-danger text-on-brand hover:bg-danger-strong',
 };
 
 const sizes: Record<Size, string> = {
@@ -26,6 +25,7 @@ const sizes: Record<Size, string> = {
   lg: 'h-12 px-6 text-base',
 };
 
+/** Button styles, also applied to links (<Link className={buttonClasses()}>). */
 export const buttonClasses = (variant: Variant = 'primary', size: Size = 'md', fullWidth = false) =>
   cn(
     'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors',

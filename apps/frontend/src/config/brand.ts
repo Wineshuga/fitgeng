@@ -1,16 +1,11 @@
-import { resolveBrand } from '@fitgeng/shared';
+import { resolveBrand, resolveTheme, themeToCss } from '@fitgeng/shared';
 import { env } from '@/config/env';
 
-/** Active brand: shared defaults overridden by VITE_BRAND_* env vars. */
+/** Active brand identity: shared defaults overridden by NEXT_PUBLIC_BRAND_* env vars. */
 export const brand = resolveBrand(env.brand);
 
-/**
- * Writes the brand colours to CSS variables. Tailwind's `brand` and `accent`
- * colour scales are defined on top of these in index.css, so components never
- * hardcode brand hex values.
- */
-export function applyBrandTheme(root: HTMLElement = document.documentElement): void {
-  root.style.setProperty('--brand-primary', brand.colors.primary);
-  root.style.setProperty('--brand-accent', brand.colors.accent);
-  document.title = brand.name;
-}
+/** Active colour theme: packages/shared/src/theme.ts plus env overrides. */
+export const theme = resolveTheme(env.theme);
+
+/** CSS variables for the theme. The root layout renders this in <head>. */
+export const themeCss = themeToCss(theme);

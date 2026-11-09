@@ -1,33 +1,55 @@
 @import 'tailwindcss';
 
+/*
+ * Colour values are defined ONLY in packages/shared/src/theme.ts. The root layout
+ * writes them to CSS variables (--fg-*), and this file maps those variables onto
+ * Tailwind colour classes. No hex values belong here or in components.
+ */
+
 /* Dark mode is class-based so ThemeContext can force light or dark. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  /* Overwritten at runtime from the brand config (src/config/brand.ts). */
-  --brand-primary: #16a34a;
-  --brand-accent: #f97316;
-}
-
 @theme inline {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --color-brand-50: color-mix(in oklab, var(--brand-primary) 8%, white);
-  --color-brand-100: color-mix(in oklab, var(--brand-primary) 16%, white);
-  --color-brand-200: color-mix(in oklab, var(--brand-primary) 32%, white);
-  --color-brand-300: color-mix(in oklab, var(--brand-primary) 52%, white);
-  --color-brand-400: color-mix(in oklab, var(--brand-primary) 76%, white);
-  --color-brand-500: var(--brand-primary);
-  --color-brand-600: color-mix(in oklab, var(--brand-primary) 86%, black);
-  --color-brand-700: color-mix(in oklab, var(--brand-primary) 70%, black);
-  --color-brand-800: color-mix(in oklab, var(--brand-primary) 54%, black);
-  --color-brand-900: color-mix(in oklab, var(--brand-primary) 38%, black);
-  --color-brand-950: color-mix(in oklab, var(--brand-primary) 22%, black);
+  /* Surfaces and text: the values switch automatically in dark mode. */
+  --color-canvas: var(--fg-canvas);
+  --color-surface: var(--fg-surface);
+  --color-surface-muted: var(--fg-surface-muted);
+  --color-line: var(--fg-line);
+  --color-line-strong: var(--fg-line-strong);
+  --color-fg: var(--fg-text);
+  --color-fg-muted: var(--fg-text-muted);
+  --color-fg-subtle: var(--fg-text-subtle);
+  --color-on-brand: var(--fg-neutral-0);
+  --color-overlay: color-mix(in oklab, var(--fg-neutral-950) 50%, transparent);
 
-  --color-accent-50: color-mix(in oklab, var(--brand-accent) 10%, white);
-  --color-accent-100: color-mix(in oklab, var(--brand-accent) 20%, white);
-  --color-accent-500: var(--brand-accent);
-  --color-accent-600: color-mix(in oklab, var(--brand-accent) 85%, black);
+  /* Brand scale derived from one colour. */
+  --color-brand-50: color-mix(in oklab, var(--fg-brand) 8%, white);
+  --color-brand-100: color-mix(in oklab, var(--fg-brand) 16%, white);
+  --color-brand-200: color-mix(in oklab, var(--fg-brand) 32%, white);
+  --color-brand-300: color-mix(in oklab, var(--fg-brand) 52%, white);
+  --color-brand-400: color-mix(in oklab, var(--fg-brand) 76%, white);
+  --color-brand-500: var(--fg-brand);
+  --color-brand-600: color-mix(in oklab, var(--fg-brand) 86%, black);
+  --color-brand-700: color-mix(in oklab, var(--fg-brand) 70%, black);
+  --color-brand-800: color-mix(in oklab, var(--fg-brand) 54%, black);
+  --color-brand-900: color-mix(in oklab, var(--fg-brand) 38%, black);
+  --color-brand-950: color-mix(in oklab, var(--fg-brand) 22%, black);
+
+  --color-accent-50: color-mix(in oklab, var(--fg-accent) 10%, white);
+  --color-accent-100: color-mix(in oklab, var(--fg-accent) 20%, white);
+  --color-accent-500: var(--fg-accent);
+  --color-accent-600: color-mix(in oklab, var(--fg-accent) 85%, black);
+
+  /* Status colours. "-soft" mixes with the current surface, so it adapts to dark mode. */
+  --color-success: var(--fg-success);
+  --color-warning: var(--fg-warning);
+  --color-danger: var(--fg-danger);
+  --color-danger-strong: color-mix(in oklab, var(--fg-danger) 80%, black);
+  --color-danger-soft: color-mix(in oklab, var(--fg-danger) 8%, var(--fg-surface));
+  --color-danger-line: color-mix(in oklab, var(--fg-danger) 30%, var(--fg-surface));
+  --color-info: var(--fg-info);
 }
 
 @layer base {
@@ -35,7 +57,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+    @apply bg-canvas text-fg antialiased;
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-500;

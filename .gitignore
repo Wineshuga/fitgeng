@@ -11,3 +11,8 @@ uploads/
 .vscode/*
 !.vscode/extensions.json
 *.tsbuildinfo
+
+# Next.js
+.next/
+next-env.d.ts
+out/

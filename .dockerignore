@@ -6,3 +6,5 @@
 !.env.example
 .git
 uploads
+**/.next
+**/next-env.d.ts

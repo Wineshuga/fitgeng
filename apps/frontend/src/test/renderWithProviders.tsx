@@ -1,32 +1,20 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { render, type RenderResult } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-router';
-import { makeStore, type AppStore } from '@/app/store';
+import { makeStore, type AppStore } from '@/store/store';
+import { StoreProvider } from '@/store/StoreProvider';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-
-interface Options {
-  store?: AppStore;
-}
 
 type ProvidersResult = RenderResult & { store: AppStore };
 
-/** Renders a component inside the same providers the app uses. */
-export function renderWithProviders(ui: ReactElement, { store = makeStore() }: Options = {}): ProvidersResult {
-  const result = render(
-    <Provider store={store}>
-      <ThemeProvider>{ui}</ThemeProvider>
-    </Provider>,
+/**
+ * Renders UI inside the same client providers the root layout uses. Passed as
+ * RTL's `wrapper`, so `rerender` keeps the providers (and the same store).
+ */
+export function renderWithProviders(ui: ReactElement, { store = makeStore() }: { store?: AppStore } = {}): ProvidersResult {
+  const Wrapper = ({ children }: { children: ReactNode }) => (
+    <StoreProvider store={store}>
+      <ThemeProvider>{children}</ThemeProvider>
+    </StoreProvider>
   );
-  return Object.assign(result, { store });
-}
-
-/** Renders a route tree at `path` using an in-memory router. */
-export function renderRoutes(
-  routes: RouteObject[],
-  path = '/',
-  options: Options = {},
-): ProvidersResult & { router: ReturnType<typeof createMemoryRouter> } {
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
-  return Object.assign(renderWithProviders(<RouterProvider router={router} />, options), { router });
+  return Object.assign(render(ui, { wrapper: Wrapper }), { store });
 }
