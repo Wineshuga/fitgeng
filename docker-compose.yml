@@ -1,0 +1,104 @@
+# Development stack. Run: docker compose up --build
+# Production configuration lives in docker-compose.prod.yml (Phase 6).
+
+name: fitgeng
+
+services:
+  mongo:
+    image: mongo:8.0
+    # Single-node replica set: required for multi-document transactions (architecture D10).
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      - '127.0.0.1:${MONGO_HOST_PORT:-27017}:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Initiates the replica set on first run; healthy once this node is primary.
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval "try { rs.status() } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }) }
+          print(db.hello().isWritablePrimary)" | grep -q true
+      interval: 5s
+      timeout: 10s
+      start_period: 20s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no', '--maxmemory', '128mb', '--maxmemory-policy', 'allkeys-lru']
+    ports:
+      - '127.0.0.1:${REDIS_HOST_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: dev
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      MONGO_URI: mongodb://mongo:27017/fitgeng?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      APP_URL: http://localhost:5173
+      CHOKIDAR_USEPOLLING: 'true'
+    ports:
+      - '${BACKEND_HOST_PORT:-4000}:4000'
+    volumes:
+      - ./apps/backend:/app/apps/backend
+      - ./packages/shared:/app/packages/shared
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      # Keep the container's Linux node_modules; don't use the host's.
+      - /app/node_modules
+      - /app/apps/backend/node_modules
+      - /app/packages/shared/node_modules
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4000/api/v1/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      target: dev
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      API_PROXY_TARGET: http://backend:4000
+      VITE_USE_POLLING: 'true'
+    ports:
+      - '${FRONTEND_HOST_PORT:-5173}:5173'
+    volumes:
+      - ./apps/frontend:/app/apps/frontend
+      - ./packages/shared:/app/packages/shared
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - /app/node_modules
+      - /app/apps/frontend/node_modules
+      - /app/packages/shared/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

@@ -1,0 +1,31 @@
+{
+  "name": "fitgeng",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sports community platform — monorepo",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev:backend": "npm run dev -w @fitgeng/backend",
+    "dev:frontend": "npm run dev -w @fitgeng/frontend",
+    "build": "npm run build -w @fitgeng/shared && npm run build -w @fitgeng/backend && npm run build -w @fitgeng/frontend",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2"
+  }
+}

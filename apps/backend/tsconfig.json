@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "../..",
+    "outDir": "dist",
+    "types": ["node", "jest"],
+    "declaration": false,
+    "paths": {
+      "@fitgeng/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src", "tests"]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@fitgeng/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared constants, types and zod validation schemas",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}
