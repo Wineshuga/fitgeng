@@ -26,13 +26,90 @@ Goal: server-rendered, indexable public pages; Express stays the only backend. T
 |-------|--------|
 | 1. Audit & plan | ✅ |
 | 2. Next.js foundation | ✅ 2026-11-10 |
-| 3. Route migration (`/player`, `/manage`, auth shells, error/loading) | ⏭ Next |
-| 4. SEO (metadata, JSON-LD, sitemap, robots, Sports pages) | Pending |
-| 5. Backend integration (server fetch layer, session check) | Pending |
+| 3. Route migration + unified `/manage` application | ✅ 2026-11-10 |
+| 4. SEO + read-only Sports catalogue | ✅ 2026-11-10 |
+| 5. Backend integration | ⏭ Next. Mostly done already: session check (Stage 3), server fetch layer (Stage 4); remaining: ARCHITECTURE revision of D12/D13 once auth decisions are confirmed |
 | 6. Docker production image + Nginx reverse proxy | Pending |
 | 7. Validation | Pending |
 
-**Decisions awaiting confirmation** (needed from Stage 3 on): single `/manage` dashboard vs `/coach` + `/organiser`; refresh cookie `Path=/; SameSite=Lax` + `GET /auth/session`; pulling the read-only Sports catalogue forward; Nginx in front of Next.js in production. Decision 5 (colours in `theme.ts`) has been implemented.
+**Decisions:** a single permission-driven `/manage` app ✅ (confirmed and implemented). Colours in `theme.ts` ✅. **Still awaiting confirmation:** refresh cookie `Path=/; SameSite=Lax` + `GET /auth/session` (Stage 3's server-side session check already calls this endpoint, so it's now effectively required); pulling the read-only Sports catalogue forward; Nginx in front of Next.js in production; whether competition and coaching-development modules join the MVP.
+
+### Stage 4 delivered: Sports catalogue and SEO foundation
+- **Backend `sports` module**, pulled forward from Phase 2 (read-only):
+  - `Sport` model with an index for the active listing
+  - idempotent startup seed of the 7 launch sports; it never overwrites admin edits or deactivation
+  - `GET /api/v1/sports` and `GET /api/v1/sports/:slug` (404 for unknown or inactive sports, 400 for malformed slugs, public `Cache-Control`)
+  - Redis cache-aside with namespace invalidation, falling back to MongoDB
+  - admin create/update/deactivate arrives with auth (Phase 2) and must call `invalidateSportsCache()`
+- **Server-side API client** (`lib/api/server.ts`, server-only): uses the internal URL, unwraps the envelope, returns `null` on 404 and throws a typed error otherwise; supports ISR `revalidate` and cache `tags`.
+- **SEO toolkit:**
+  - `pageMetadata()` builds the title, description, canonical URL, Open Graph and X/Twitter card
+  - `JsonLd` escapes `<`, so API content can't close the script tag
+  - builders for WebSite, Organization, BreadcrumbList and WebPage; only real data is included (no ratings or addresses)
+  - visible `Breadcrumbs` component
+- **Pages:**
+  - `/sports`: ISR every 5 min, with empty and API-down states
+  - `/sports/[slug]`: ISR, no pages built in advance (builds never need the API), unique metadata generated from the sport, breadcrumb and WebPage structured data, related-sports links; 404 for unknown sports
+  - landing page: sports links come from the API, plus WebSite and Organization structured data
+  - public header and footer link to `/sports`
+- **Site-wide:**
+  - `sitemap.xml`: home, `/sports` and each active sport with `lastModified`; never private, account or API paths
+  - `robots.txt`: disallows `/manage/`, `/player/`, `/api/`; account pages stay crawlable so their `noindex` is seen
+  - brand Open Graph images: site default plus a per-sport card
+  - root Open Graph and Twitter defaults, Search Console verification via `GOOGLE_SITE_VERIFICATION`
+
+### Stage 4 verification
+- Backend: 43 tests (10 new: seed idempotency and admin-edit preservation, listing order, inactive hidden, no internal fields, 404/400, cache hit until invalidated, MongoDB-only path).
+- Frontend: 156 tests (37 new: sports pages, unique metadata per sport, JSON-LD content and XSS escaping, related-link failure isolation, 404 and noindex, sitemap contents and exclusions, robots rules, API client).
+- **Docker (live):**
+  - the backend seeded the sports on restart
+  - Redis holds `fg:sports:v0:active` and `fg:sports:v0:slug:tennis`
+  - raw HTML of `/sports/tennis` contains the `<h1>`, a unique `<title>` and description, canonical URL, `og:url`, `og:image`, `twitter:card` and BreadcrumbList/WebPage JSON-LD
+  - the share image is a valid 1200×630 PNG
+  - `sitemap.xml` lists all 9 URLs; `robots.txt` serves the rules
+- **Production build with the API deliberately unreachable:** succeeds, and static generation took 8 s.
+- **Standalone production server:** `/sports/football` gives MISS then HIT (`x-nextjs-cache`), with `s-maxage=300`; `/sports/curling` returns 404.
+
+### Known issues (Stage 4)
+- **Pages prerendered during a build that can't reach the API** (`/`, `/sports`, `sitemap.xml`) serve their fallback (no sports list, or "temporarily unavailable") until their first background regeneration, at most 5 minutes after deploy. Stage 6 should let the image build reach the API, or trigger revalidation after deploy.
+- Open Graph images use the renderer's default font (regular weight only). A bundled bold brand font can be added later.
+- `/discover?sport=…` links point at the placeholder Discover page (noindex) until Phase 4.
+- `NEXT_PUBLIC_SITE_URL` must be the production domain at build time. Otherwise canonical URLs, the sitemap and Open Graph URLs point at localhost.
+
+### Stage 3 delivered: unified management application
+- **Shared permission model** (`packages/shared/src/permissions.ts`): permissions grouped into `core`, `coaching` and `competition` families. Effective permissions are the org role's grants ∩ the families the user's capabilities unlock (see ARCHITECTURE §3.3).
+- **Backend enforcement** (`apps/backend/src/middleware/authorize.ts`): `requireOrgPermission(permission)` answers 401 when signed out, 404 for non-members and 403 for missing permissions. It's ready for `authenticate` (Phase 2) and `loadOrgContext` (Phase 3a) to fill `req.access`.
+- **Module registry** (`features/manage/modules.ts`): 18 modules in 7 sections. Groups, teams, training sessions, events and competitions are separate modules.
+- **One shell for every manager:**
+  - `ManageShell` renders section-grouped, permission-filtered navigation, the mobile drawer and the user name
+  - `OrgSwitcher` keeps the current module when it's allowed in the target organisation
+  - the last-used organisation is remembered in a non-sensitive cookie
+- **Routes:**
+  - `/manage`: the last-used org, else the only org, else a picker; with no orgs, guidance based on capabilities
+  - `/manage/[org]`: membership checked on the server (404 for non-members)
+  - `/manage/[org]` overview page: lists the modules this user can open
+  - `/manage/[org]/[module]`: 404 for unknown modules, real HTTP 403 (`forbidden()`) for missing permissions
+  - player area: `/player` and `/player/[section]`
+  - auth shells (noindex): `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email`
+  - public `/discover` (noindex until it lists real data)
+  - root `error.tsx`, `forbidden.tsx`, manage `loading.tsx`
+- **Server-side session** (`lib/auth/session.ts`, `server-only`): validates the HttpOnly cookie with `GET /auth/session` on `INTERNAL_API_URL`, with one lookup per request via React `cache`. It never returns or renders tokens. An unreachable API is treated as signed out.
+- **`proxy.ts`**: cookie-less requests to `/manage/*` and `/player/*` go to `/login?next=…`.
+- Replaced the earlier `manageNav` capability filter (which didn't account for org roles) and the Redux `activeOrgId`. The organisation now comes from the URL, so it isn't duplicated in client state.
+
+### Stage 3 verification
+- Frontend tests: 119 passing. Covered: module registry, navigation per capability mix, org-coach restrictions, org switcher, drawer, session lookup (no cookie, forwarded cookie, 401, unreachable API), membership 404, module 404/403 by direct URL, `/manage` entry logic, proxy redirects.
+- Backend tests: 33 passing, including 11 new permission-matrix and middleware tests (401/404/403/200).
+- `next build`: public and auth pages are static, `/manage/*` and `/player/*` are dynamic, the proxy is registered. `tsc` and ESLint are clean.
+- Live check (standalone server + real Express app):
+  - `/manage`, `/manage/ikoyi/payments` and `/player/schedule` without a cookie: 307 to `/login?next=<path>`
+  - with a forged cookie, the Next server called Express `GET /api/v1/auth/session` (cookie redacted in Express logs), got 404 and redirected to login
+  - `/login` is served with `noindex`
+
+### Known issues (Stage 3)
+- **Management and player areas can't be opened in a browser until Phase 2** provides real sessions (`GET /auth/session`). Every path redirects to `/login`, as designed. The UI is covered by tests with real permission logic.
+- The `next` login parameter must be validated as a same-site path when the login form is built (Phase 2), to prevent open redirects.
+- Docker Desktop stopped during this stage. The Compose stack wasn't re-run (Compose now also passes `INTERNAL_API_URL` to the frontend).
 
 ### Stage 2 delivered
 - **Toolchain:**
@@ -71,7 +148,7 @@ Goal: server-rendered, indexable public pages; Express stays the only backend. T
 
 ### Known issues (migration)
 - **Production frontend image is broken until Stage 6.** The Dockerfile's `build`/`prod` stages still target Vite and static Nginx. The dev stage works.
-- `/login`, `/register`, `/discover`, `/player/*` and `/manage/*` return 404 until Stage 3. The layouts exist and are tested.
+- ~~`/login`, `/register`, `/discover`, `/player/*` and `/manage/*` return 404 until Stage 3.~~ Resolved in Stage 3.
 - Turbopack doesn't detect bind-mount changes in Docker on Windows, so the container uses webpack (`dev:docker`). Local `npm run dev` still uses Turbopack.
 - Next warns about a slow filesystem for `.next/dev` inside the container on Windows. It works, but first compiles take a few seconds.
 

@@ -14,6 +14,18 @@ const paths = {
   menu: 'M4 6h16M4 12h16M4 18h16',
   close: 'M6 6l12 12M18 6 6 18',
   bell: 'M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9m4.3 13a1.9 1.9 0 0 0 3.4 0',
+  shield: 'M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13v4l3 2',
+  clipboard: 'M9 4h6v3H9zM9 5H6v16h12V5h-3M9 12h6m-6 4h4',
+  star: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z',
+  trending: 'M3 17l6-6 4 4 8-8m0 0h-6m6 0v6',
+  graduation: 'M2 9l10-5 10 5-10 5zm4 2.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5M22 9v6',
+  flag: 'M5 21V4m0 0h11l-2 4 2 4H5',
+  list: 'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',
+  scoreboard: 'M3 5h18v14H3zM12 5v14M7 10v4m10-4v4',
+  table: 'M3 5h18v14H3zM3 10h18M3 15h18M9 5v14',
+  building: 'M4 21V5l8-2v18m0-12h8v12M8 8v.01M8 12v.01M8 16v.01M16 13v.01M16 17v.01M2 21h20',
+  chevronDown: 'm6 9 6 6 6-6',
 } as const;
 
 export type IconName = keyof typeof paths;

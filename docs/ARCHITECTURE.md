@@ -101,20 +101,58 @@ Capabilities are **not exclusive**. They decide what a user *may create* and *wh
 
 | Scope | Collection | Roles | Can do |
 |-------|------------|-------|--------|
-| Organisation | `OrganisationMember` | `owner`, `admin`, `coach` | owner/admin: everything in the org. coach: only groups/teams where they are staff, plus read access to the org roster |
+| Organisation | `OrganisationMember` | `owner`, `admin`, `coach` | Permissions per §3.3. An org coach's group/team access is further limited to groups they staff (per-record policy) |
 | Group / Team | `GroupStaff` | `coach`, `manager` | Manage that group's members, schedules, sessions, attendance, announcements |
 | Group / Team | `Membership` | `member`, `captain` | Player-side access: view schedule, announcements, own attendance/payments |
 
-### 3.3 How a request is authorised
+### 3.3 Management permissions (implemented 2026-11-10)
+
+`packages/shared/src/permissions.ts` is the **single source of truth**. The API enforces it, and the frontend uses the same function only to decide what to display.
+
+**Effective permissions in an organisation = the org role's grants ∩ the permission families the user's capabilities unlock.**
+
+| Family | Permissions | Unlocked by |
+|---|---|---|
+| `core` | `dashboard.view`, `org.settings`, `players`, `groups`, `teams`, `schedules`, `sessions`, `attendance`, `payments`, `posts`, `events` (`.manage`) | Always (given an org role) |
+| `coaching` | `programmes`, `assessments`, `progression`, `graduation` | Global `coach` capability **or** org role `coach` |
+| `competition` | `competitions`, `fixtures`, `results`, `standings` | Global `organiser` capability |
+
+| Org role | Grants |
+|---|---|
+| `owner`, `admin` | Every permission |
+| `coach` | Core training permissions (players, groups, teams, schedules, sessions, attendance, posts, events) plus the coaching family. Not `payments`, `org.settings` or competition admin |
+
+Consequences:
+- A coach-and-organiser owner sees both families in one navigation.
+- An organiser-only owner has no coaching tools, and a coach-only owner has no competition tools.
+- An owner whose capabilities are revoked keeps core access to their organisation.
+- Adding a capability means adding a family and its permissions, not another dashboard.
+
+### 3.4 How a request is authorised
 
 ```
-authenticate            → verifies JWT, loads req.user {id, capabilities, tokenVersion}
-requireCapability(...)  → coarse gate for management routes (403 if missing)
-loadOrgContext          → for /orgs/:orgId/* — loads OrganisationMember, 404 if not a member
-service + policy        → e.g. groupPolicy.canManage(actor, group) — the authoritative check
+authenticate                     → (Phase 2) verifies JWT; sets req.access {userId, capabilities}
+loadOrgContext                   → (Phase 3a) loads OrganisationMember for :orgId into req.access.membership
+requireOrgPermission(permission) → implemented: 401 signed out · 404 not a member · 403 lacks permission
+service + policy                 → per-record rules, e.g. an org coach may only edit groups they staff
 ```
 
-Policies live in each module's `*.policy.ts` and are unit-tested directly. If a policy check fails, records from another organisation return **404, not 403**, so their existence isn't revealed.
+Every management router mounts `requireOrgPermission` per module (e.g. `payments.manage` on fee and payment routes). Policies live in each module's `*.policy.ts` and are unit-tested directly. Records from another organisation return **404, not 403**, so their existence isn't revealed.
+
+### 3.5 The management application (`/manage`)
+
+One application for every coach and organiser. It is driven by permissions, not account types.
+
+```
+/manage                        server: last-used org (cookie) → only org → picker; no orgs → guidance by capability
+/manage/[org]                  server: session + membership check (404 if not a member) → ManageShell
+/manage/[org]/[module]         server: module registry lookup (404 if unknown) → permission check (403) → page
+```
+
+- **Org in the URL.** Every management page is scoped to one organisation, matching the API's `/orgs/:orgId/*`. Links can be shared, and the server can check membership before rendering. An `OrgSwitcher` changes organisation and keeps the current module if it's allowed there.
+- **Module registry** (`apps/frontend/src/features/manage/modules.ts`): key, label, section, icon and required permission for every module. Navigation, the overview page, route protection and the switcher all read it. A built module gets its own route folder (`[org]/players/page.tsx`), which takes precedence over the dynamic `[module]` fallback, so modules can ship independently.
+- **Distinct concepts** stay distinct modules: training **groups** (coached, ongoing membership) · competitive **teams** (squads) · training **sessions** (from schedules) · **events** (one-off friendlies, meetups, community games) · **competitions** (multi-fixture tournaments and leagues).
+- **Defence in depth:** `proxy.ts` sends cookie-less requests to `/login`; layouts validate the session with the API; Express authorises every API call. Hiding a navigation item is never the protection.
 
 ---
 
@@ -320,7 +358,7 @@ Public / player
   GET    /me/profile/player        PUT   /me/profile/player
   GET    /me/profile/coach         PUT   /me/profile/coach
   GET    /me/memberships | /me/sessions | /me/attendance | /me/charges | /me/payments | /me/orgs
-  GET    /sports
+  GET    /sports                   GET /sports/:slug            (implemented: public, Redis-cached, active only)
   GET    /discover/groups | /discover/coaches | /discover/orgs | /discover/teams | /discover/events
   GET    /groups/:slugOrId (public view)     POST /groups/:id/join     DELETE /groups/:id/membership
   GET    /coaches/:slug   GET /orgs/:slug (public)
@@ -427,7 +465,7 @@ Each phase ends with passing tests, an updated `docs/PROGRESS.md`, and a short r
 - **SMS / WhatsApp / push notifications**: in-app and email only. WhatsApp is worth prioritising after the MVP for the Nigerian market.
 - **Geo "near me" search**: filters use state and area only.
 - **Real-time updates** (websockets), direct messaging, comments and likes on posts, algorithmic feed.
-- **Tournament brackets, leagues, rankings, fixture generation** (per spec).
+- **Competition and coaching-development modules.** The permission model, navigation and routes exist (§3.3, §3.5), but the features are planned, not built: competitions (tournaments/leagues), fixtures, results and standings (the original spec excluded brackets, league tables and fixture generation from the MVP), plus training programmes, assessments and skill progression. Graduation is in the MVP (player status `graduated`, Phase 3a). When scheduled, the intended data model is `Competition` (type, format, season, entrant teams) → `Fixture` (home/away team, time, venue, status) → `Result` (score, recorded by), with standings derived from results rather than stored, and `TrainingProgramme`, `Assessment` (criteria scores per player) and `SkillProgress` (snapshots over time).
 - **Job queue** (BullMQ): in-process cron with a Redis lock.
 - **Internationalisation / multi-currency**: NGN and English only.
 

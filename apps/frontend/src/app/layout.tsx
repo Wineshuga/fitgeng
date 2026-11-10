@@ -11,10 +11,17 @@ import '@/styles/globals.css';
 const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' });
 
 export const metadata: Metadata = {
+  // Resolves relative canonical and Open Graph URLs against the public origin.
   metadataBase: new URL(env.siteUrl),
   title: { default: `${brand.name} | ${brand.tagline}`, template: `%s | ${brand.name}` },
   description: brand.description,
   applicationName: brand.name,
+  openGraph: { type: 'website', siteName: brand.name, locale: 'en_NG' },
+  twitter: { card: 'summary_large_image' },
+  // Google Search Console HTML-tag verification (set GOOGLE_SITE_VERIFICATION at build time).
+  ...(process.env.GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } }
+    : {}),
 };
 
 export const viewport: Viewport = {

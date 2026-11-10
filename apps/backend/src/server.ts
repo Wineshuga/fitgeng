@@ -4,10 +4,15 @@ import { logger } from './config/logger';
 import { connectMongo, disconnectMongo } from './config/database';
 import { connectRedis, disconnectRedis } from './config/redis';
 import { createApp } from './app';
+import { ensureDefaultSports } from './modules/sports/sport.seed';
 
 async function main() {
   await connectMongo(env.MONGO_URI);
   connectRedis(env.REDIS_URL); // Not awaited: the API starts even if Redis is unreachable.
+
+  // Reference data: inserts missing default sports, never changes existing ones.
+  const added = await ensureDefaultSports();
+  if (added > 0) logger.info({ added }, 'Seeded default sports');
 
   const app = createApp();
   const server: Server = app.listen(env.PORT, () => {

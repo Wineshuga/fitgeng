@@ -17,6 +17,9 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <BrandLogo />
           <nav className="flex items-center gap-1 sm:gap-2" aria-label="Main">
+            <Link href="/sports" className={`${buttonClasses('ghost', 'sm')} hidden sm:inline-flex`}>
+              Sports
+            </Link>
             <ThemeToggle />
             <Link href="/login" className={buttonClasses('ghost', 'sm')}>
               Log in
@@ -35,6 +38,14 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
           <p>
             © {new Date().getFullYear()} {brand.name}. Built for Nigeria&apos;s sports communities.
           </p>
+          <nav aria-label="Footer" className="flex gap-4">
+            <Link href="/sports" className="hover:text-brand-600">
+              Sports
+            </Link>
+            <Link href="/discover" className="hover:text-brand-600">
+              Discover
+            </Link>
+          </nav>
           <ApiStatus />
         </div>
       </footer>

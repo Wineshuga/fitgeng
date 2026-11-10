@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: repoRoot,
   turbopack: { root: repoRoot },
 
+  // Enables forbidden() / unauthorized() so pages can answer with real 403/401 status codes.
+  experimental: { authInterrupts: true },
+
   images: {
     remotePatterns: [{ protocol: 'https', hostname: 'res.cloudinary.com' }],
   },

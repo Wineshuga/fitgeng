@@ -11,6 +11,8 @@ module.exports = createJestConfig({
   roots: ['<rootDir>/src'],
   testMatch: ['**/*.test.ts', '**/*.test.tsx'],
   moduleNameMapper: {
+    // server-only throws outside a React Server environment; tests import server modules directly.
+    '^server-only$': '<rootDir>/src/test/emptyModule.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@fitgeng/shared$': '<rootDir>/../../packages/shared/src/index.ts',
   },
