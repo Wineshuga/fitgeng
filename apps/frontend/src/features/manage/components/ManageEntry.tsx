@@ -5,6 +5,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Icon } from '@/components/Icon';
 import { buttonClasses } from '@/components/ui/Button';
+import { LogoutButton } from '@/features/auth/components/SessionControls';
 
 const ROLE_LABEL = { owner: 'Owner', admin: 'Admin', coach: 'Coach' } as const;
 
@@ -13,7 +14,10 @@ function EntryFrame({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <header className="flex h-16 items-center justify-between border-b border-line px-4">
         <BrandLogo href="/manage" />
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
       </header>
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-12">{children}</main>
     </div>

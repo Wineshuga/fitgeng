@@ -1,8 +1,16 @@
 import type { Metadata } from 'next';
-import { UpcomingFeature } from '@/components/UpcomingFeature';
+import { AuthCard } from '@/features/auth/components/AuthCard';
+import { VerifyEmail } from '@/features/auth/components/VerifyEmail';
 
 export const metadata: Metadata = { title: 'Verify your email' };
 
-export default function VerifyEmailPage() {
-  return <UpcomingFeature title="Verify your email" availability="Phase 2" />;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function VerifyEmailPage({ searchParams }: { searchParams: SearchParams }) {
+  const raw = (await searchParams).token;
+  return (
+    <AuthCard title="Verify your email">
+      <VerifyEmail token={typeof raw === 'string' ? raw : undefined} />
+    </AuthCard>
+  );
 }

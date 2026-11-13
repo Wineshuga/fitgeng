@@ -8,7 +8,7 @@ Tracks completed work, remaining work, known issues and decisions made during im
 |-------|--------|
 | 1. Foundation | ✅ Complete (2026-11-09), Docker Compose stack verified |
 | **Frontend migration: Vite → Next.js** | 🔄 In progress: Stage 2 of 7 done (see below) |
-| 2. Auth & permissions | 🔄 2a (backend auth core) ✅ 2026-11-13 · 2b (frontend auth flows) ⏭ next · 2c (profiles, capability requests, admin) |
+| 2. Auth & permissions | 🔄 2a (backend auth core) ✅ · 2b (frontend auth flows) ✅ 2026-11-13 · 2c (profiles, capability requests, admin) ⏭ next |
 | 3a. Orgs, roster, groups, teams, memberships | Not started |
 | 3b. Schedules, sessions, attendance | Not started |
 | 3c. Fees & payments | Not started |
@@ -76,8 +76,52 @@ Tracks completed work, remaining work, known issues and decisions made during im
   14. a stale cookie → redirected to login
 - **Not yet run:** the new backend in the Docker dev stack (Docker crashed during the rebuild). After Docker is healthy: `docker compose up -d --build --renew-anon-volumes`, because the backend has a new native dependency (argon2).
 
-### Next: 2b (frontend auth flows)
-Login, register, verify-email, forgot/reset password pages (shared zod schemas, `safeNextPath`); `auth` slice with the access token in memory; RTK Query base query with Bearer header and a refresh-on-401 mutex; logout; session-aware navigation.
+---
+
+## Phase 2b: frontend authentication flows (2026-11-13)
+
+### Delivered
+- **`auth` slice:** access token in memory only (never persisted or rendered), current user, status `unknown | authenticated | anonymous`.
+- **`baseQueryWithReauth`** (`services/baseApi.ts`):
+  - adds the Bearer header to requests
+  - on a 401 from a non-auth endpoint, calls `POST /auth/refresh` once (with the CSRF header and the cookie), stores the new token and retries
+  - a shared lock gives concurrent 401s a single refresh
+  - a failed refresh signs the user out; `/auth/*` calls are never retried (no loops)
+  - after a page reload, the first protected call obtains a token through the cookie
+- **`authApi` endpoints:** login, register, verify, resend, forgot, reset, logout. Logout clears client state and the RTK Query cache even if the network call fails.
+- **Pages** (server components, `noindex`): `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`.
+  - `/login` and `/register` redirect signed-in users, honouring `next` through `safeNextPath`
+  - tokens and `next` come from `searchParams` on the server
+- **Client forms:**
+  - validated with the **same zod schemas as the API** (`validateForm`); API field errors mapped onto inputs (`apiFieldErrors`)
+  - login offers a resend for `EMAIL_NOT_VERIFIED`
+  - verification runs once on load (a ref guard against StrictMode double effects)
+  - the reset form checks the passwords match and explains that every device was signed out
+- **Session wiring:**
+  - `AuthHydrator` puts the server-validated session user (no token) into Redux in `/player` and `/manage/[org]`
+  - `LogoutButton` in the player, management and `/manage` entry headers
+- **UI:** accessible `TextField` (label, `aria-invalid`, `aria-describedby`, announced errors), `Alert` (error/success/info), `AuthCard`. New success/info soft tokens are derived from `theme.ts` (the colour guard still passes).
+
+### Verification
+- Frontend: 220 tests passing (38 new):
+  - auth slice
+  - re-auth: Bearer header, refresh and retry, CSRF header and credentials on refresh, token obtained after reload, a single refresh for 3 concurrent 401s, sign-out on refresh failure, no refresh for auth endpoints
+  - forms: client validation without API calls, safe and unsafe `next`, token never written to `localStorage`, wrong-credentials message, the unverified resend flow, password policy, API field-error mapping, verify-once under StrictMode, expired link, missing token, forgot and reset flows
+  - logout: CSRF header, state cleared even on failure
+  - auth pages: signed-in redirects, including an open-redirect attempt
+  - hydration of the login and register forms
+- Typecheck and ESLint: clean. `next build`: succeeds; auth pages render per request.
+- **Browser-path end-to-end** (real API on an in-memory MongoDB plus the production Next.js server; every request goes through the Next.js origin and its `/api` proxy, as a browser would): **22/22**
+  - pages: `/login` and `/register` render; the emailed verify and reset links open working pages
+  - account: register, verify, login, with the `fg_rt` HttpOnly cookie stored on the site origin
+  - signed-in redirects: from `/login` (including `next=/manage`, and `next=//evil` going to `/player`) and from `/register`
+  - signed-in areas: `/player` with Log out and `/manage` render for the user
+  - session lifecycle: silent refresh through the proxy; logout, after which `/player` sends you to login
+  - password reset: forgot, reset, old password refused, new password accepted
+- **Not covered:** clicking through in a real browser (typing into forms in Chrome). Components are covered by React Testing Library and the server and API path by the journey above.
+
+### Next: 2c
+Profile editing (player and coach), coach/organiser capability requests with platform-admin approval, seeded platform admin, admin sports management (with cache invalidation), minimal admin pages.
 
 ---
 

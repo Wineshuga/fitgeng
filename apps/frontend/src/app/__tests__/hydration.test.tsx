@@ -11,6 +11,9 @@ import { PlayerLayout } from '@/layouts/PlayerLayout';
 import { ManageShell } from '@/features/manage/components/ManageShell';
 import { allowedModuleKeys } from '@/features/manage/modules';
 import { membership } from '@/test/sessions';
+import { AuthCard } from '@/features/auth/components/AuthCard';
+import { LoginForm } from '@/features/auth/components/LoginForm';
+import { RegisterForm } from '@/features/auth/components/RegisterForm';
 import { healthy, mockApi, testSports } from '@/test/mockApi';
 
 // This test drives React directly rather than through Testing Library, so enable act() support itself.
@@ -87,6 +90,20 @@ describe('hydration (server HTML matches the first client render)', () => {
   it('server-rendered sport page', async () => {
     const page = await SportPage({ params: Promise.resolve({ slug: 'tennis' }) });
     await expectCleanHydration(<PublicLayout>{page}</PublicLayout>, { dark: true });
+  });
+
+  it('login and registration forms', async () => {
+    await expectCleanHydration(
+      <AuthCard title="Log in">
+        <LoginForm next="/manage" />
+      </AuthCard>,
+      { dark: true },
+    );
+    await expectCleanHydration(
+      <AuthCard title="Create your account">
+        <RegisterForm />
+      </AuthCard>,
+    );
   });
 
   it('player layout', async () => {

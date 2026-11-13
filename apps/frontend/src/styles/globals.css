@@ -49,7 +49,13 @@
   --color-danger-strong: color-mix(in oklab, var(--fg-danger) 80%, black);
   --color-danger-soft: color-mix(in oklab, var(--fg-danger) 8%, var(--fg-surface));
   --color-danger-line: color-mix(in oklab, var(--fg-danger) 30%, var(--fg-surface));
+  --color-success-soft: color-mix(in oklab, var(--fg-success) 10%, var(--fg-surface));
+  --color-success-line: color-mix(in oklab, var(--fg-success) 35%, var(--fg-surface));
+  --color-success-strong: color-mix(in oklab, var(--fg-success) 65%, var(--fg-text));
   --color-info: var(--fg-info);
+  --color-info-soft: color-mix(in oklab, var(--fg-info) 8%, var(--fg-surface));
+  --color-info-line: color-mix(in oklab, var(--fg-info) 30%, var(--fg-surface));
+  --color-info-strong: color-mix(in oklab, var(--fg-info) 70%, var(--fg-text));
 }
 
 @layer base {

@@ -11,6 +11,7 @@ import { useAppDispatch, useAppSelector } from '@/hooks/store';
 import { setMobileNavOpen } from '@/store/uiSlice';
 import { buildNavSections } from '../modules';
 import { OrgSwitcher } from './OrgSwitcher';
+import { LogoutButton } from '@/features/auth/components/SessionControls';
 
 export interface ManageShellProps {
   children: ReactNode;
@@ -132,6 +133,7 @@ export function ManageShell({ children, org, memberships, capabilities, allowedM
           <div className="flex-1" />
           <span className="hidden text-sm text-fg-muted sm:inline">{userName}</span>
           <ThemeToggle />
+          <LogoutButton />
         </header>
         <main className="flex-1 p-4 md:p-8">{children}</main>
       </div>

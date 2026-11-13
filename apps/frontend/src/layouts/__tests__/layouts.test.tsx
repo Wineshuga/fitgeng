@@ -3,7 +3,10 @@ import { usePathname } from 'next/navigation';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { PlayerLayout } from '../PlayerLayout';
 
-jest.mock('next/navigation', () => ({ usePathname: jest.fn() }));
+jest.mock('next/navigation', () => ({
+  usePathname: jest.fn(),
+  useRouter: () => ({ replace: jest.fn(), refresh: jest.fn(), push: jest.fn() }),
+}));
 const mockPathname = usePathname as jest.Mock;
 
 describe('PlayerLayout', () => {
@@ -19,5 +22,6 @@ describe('PlayerLayout', () => {
     expect(within(tabs).getByRole('link', { name: 'Schedule' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('heading', { name: 'Schedule' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
   });
 });

@@ -3,6 +3,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Icon } from '@/components/Icon';
 import { NavItemLink } from '@/components/NavItemLink';
+import { LogoutButton } from '@/features/auth/components/SessionControls';
 import { playerNav } from '@/routes/navigation';
 
 /**
@@ -32,7 +33,10 @@ export function PlayerLayout({ children }: { children: ReactNode }) {
               </NavItemLink>
             ))}
           </nav>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <LogoutButton />
+          </div>
         </div>
       </header>
 

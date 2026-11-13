@@ -457,8 +457,8 @@ Platform admin
 ### 6.4 Frontend rendering and state
 - **Server Components by default.** Public pages fetch from Express on the server (`lib/api/server.ts`, server-only) and use ISR: built on first request (no live API needed at build time), regenerated in the background. Client Components are used only for interactivity: theme toggle, live status, nav active state, management drawer and switcher, forms.
 - **Authenticated areas** (`/player`, `/manage`) render dynamically. Layouts call `getSession()` / `requireManageContext()` on the server; the browser receives only non-sensitive user info, never tokens.
-- **RTK Query** handles client-side server state, with tag-based invalidation. In Phase 2 the base query gets the access token and a re-auth mutex (on 401, call `/auth/refresh` once, then retry).
-- **Redux:** `makeStore()` per `StoreProvider` instance (never a module-level store, so nothing leaks between requests). Slices: `ui` now, `auth` (access token in memory, current user) in Phase 2. The current organisation comes from the URL (`/manage/[org]`), so it isn't duplicated in client state.
+- **RTK Query** handles client-side server state, with tag-based invalidation. `baseQueryWithReauth` (implemented in Phase 2b) adds the in-memory access token and, on a 401, calls `/auth/refresh` once behind a shared lock, then retries; a failed refresh signs the user out.
+- **Redux:** `makeStore()` per `StoreProvider` instance (never a module-level store, so nothing leaks between requests). Slices: `ui` and `auth` (access token in memory only, current user, status). The current organisation comes from the URL (`/manage/[org]`), so it isn't duplicated in client state.
 - **Context:** `ThemeContext` only. Brand config is a static module import.
 - **Hydration safety:** a blocking inline script applies the theme before paint; nothing reads `localStorage` during render; browser state is restored after mount.
 - Every client data view uses the shared loading/error/empty/success pattern (`<QueryState>`).

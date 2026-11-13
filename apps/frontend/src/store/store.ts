@@ -2,10 +2,12 @@ import { combineReducers, configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 import { baseApi } from '@/services/baseApi';
 import { uiSlice } from '@/store/uiSlice';
+import { authSlice } from '@/store/authSlice';
 
 const rootReducer = combineReducers({
   [baseApi.reducerPath]: baseApi.reducer,
   [uiSlice.name]: uiSlice.reducer,
+  [authSlice.name]: authSlice.reducer,
 });
 
 export type RootState = ReturnType<typeof rootReducer>;
