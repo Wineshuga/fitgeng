@@ -64,23 +64,23 @@ export const MANAGE_MODULES: readonly ManageModule[] = [
   { key: 'attendance', label: 'Attendance', description: 'Mark and review attendance per session.', icon: 'check', section: 'training', permission: 'attendance.manage', availability: planned('Phase 3b') },
 
   // Coaching (coach capability, or the organisation's coach role)
-  { key: 'programmes', label: 'Training programmes', description: 'Structured curricula and drills for groups.', icon: 'clipboard', section: 'coaching', permission: 'programmes.manage', availability: planned('After the MVP') },
-  { key: 'assessments', label: 'Assessments', description: 'Evaluate players against skill criteria.', icon: 'star', section: 'coaching', permission: 'assessments.manage', availability: planned('After the MVP') },
-  { key: 'progression', label: 'Skill progression', description: 'Track each player’s development over time.', icon: 'trending', section: 'coaching', permission: 'progression.manage', availability: planned('After the MVP') },
+  { key: 'programmes', label: 'Training programmes', description: 'Structured curricula and drills for groups.', icon: 'clipboard', section: 'coaching', permission: 'programmes.manage', availability: planned('Phase 3d') },
+  { key: 'assessments', label: 'Assessments', description: 'Evaluate players against skill criteria.', icon: 'star', section: 'coaching', permission: 'assessments.manage', availability: planned('Phase 3d') },
+  { key: 'progression', label: 'Skill progression', description: 'Track each player’s development over time.', icon: 'trending', section: 'coaching', permission: 'progression.manage', availability: planned('Phase 3d') },
   { key: 'graduation', label: 'Graduation', description: 'Move players to the next level or mark them graduated.', icon: 'graduation', section: 'coaching', permission: 'graduation.manage', availability: planned('Phase 3a') },
 
   // Competitions (organiser capability)
-  { key: 'competitions', label: 'Competitions', description: 'Tournaments and leagues.', icon: 'trophy', section: 'competition', permission: 'competitions.manage', availability: planned('After the MVP') },
-  { key: 'fixtures', label: 'Fixtures', description: 'Match schedule between teams.', icon: 'list', section: 'competition', permission: 'fixtures.manage', availability: planned('After the MVP') },
-  { key: 'results', label: 'Results', description: 'Record match scores and outcomes.', icon: 'scoreboard', section: 'competition', permission: 'results.manage', availability: planned('After the MVP') },
-  { key: 'standings', label: 'Standings', description: 'League tables computed from results.', icon: 'table', section: 'competition', permission: 'standings.manage', availability: planned('After the MVP') },
+  { key: 'competitions', label: 'Competitions', description: 'Tournaments and leagues.', icon: 'trophy', section: 'competition', permission: 'competitions.manage', availability: planned('Phase 5b') },
+  { key: 'fixtures', label: 'Fixtures', description: 'Match schedule between teams.', icon: 'list', section: 'competition', permission: 'fixtures.manage', availability: planned('Phase 5b') },
+  { key: 'results', label: 'Results', description: 'Record match scores and outcomes.', icon: 'scoreboard', section: 'competition', permission: 'results.manage', availability: planned('Phase 5b') },
+  { key: 'standings', label: 'Standings', description: 'League tables computed from results.', icon: 'table', section: 'competition', permission: 'standings.manage', availability: planned('Phase 5b') },
 
   // Finance
   { key: 'payments', label: 'Payments', description: 'Fee plans, charges, recorded payments and balances.', icon: 'wallet', section: 'finance', permission: 'payments.manage', availability: planned('Phase 3c') },
 
   // Community
-  { key: 'events', label: 'Events', description: 'Friendlies, meetups and community games, with registrations.', icon: 'flag', section: 'community', permission: 'events.manage', availability: planned('Phase 5') },
-  { key: 'posts', label: 'Posts', description: 'Announcements and recruitment posts.', icon: 'megaphone', section: 'community', permission: 'posts.manage', availability: planned('Phase 5') },
+  { key: 'events', label: 'Events', description: 'Friendlies, meetups and community games, with registrations.', icon: 'flag', section: 'community', permission: 'events.manage', availability: planned('Phase 5a') },
+  { key: 'posts', label: 'Posts', description: 'Announcements and recruitment posts.', icon: 'megaphone', section: 'community', permission: 'posts.manage', availability: planned('Phase 5a') },
 
   // Organisation
   { key: 'settings', label: 'Settings', description: 'Organisation profile, members and roles.', icon: 'settings', section: 'organisation', permission: 'org.settings', availability: planned('Phase 3a') },

@@ -3,8 +3,14 @@ import type { SportDto } from '@fitgeng/shared';
 import { getSports } from '@/features/sports/server';
 import { absoluteUrl } from '@/lib/seo/metadata';
 
-// Regenerated hourly. New public entities (coaches, communities, events) are added here as their pages ship.
-export const revalidate = 3600;
+/**
+ * Rendered per request, never at build time: an image build can't reach the
+ * API, and a prerendered sitemap would then list only the static pages until it
+ * regenerated. The API data is still cached for 5 minutes (getSports), so this
+ * stays cheap. New public entities (coaches, communities, events) are added
+ * here as their pages ship.
+ */
+export const dynamic = 'force-dynamic';
 
 /**
  * Public, indexable URLs only. Private areas (/manage, /player), account pages

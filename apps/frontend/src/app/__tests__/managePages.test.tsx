@@ -102,6 +102,6 @@ describe('/manage/[org]/[module]', () => {
     mockSessionApi(session(['coach'], [ikoyi]));
     renderWithProviders(await ManageModulePage({ params: params({ org: 'ikoyi', module: 'assessments' }) }));
     expect(screen.getByRole('heading', { name: 'Assessments' })).toBeInTheDocument();
-    expect(screen.getByText(/After the MVP/)).toBeInTheDocument();
+    expect(screen.getByText(/Phase 3d/)).toBeInTheDocument();
   });
 });

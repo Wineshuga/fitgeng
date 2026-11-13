@@ -8,13 +8,76 @@ Tracks completed work, remaining work, known issues and decisions made during im
 |-------|--------|
 | 1. Foundation | ✅ Complete (2026-11-09), Docker Compose stack verified |
 | **Frontend migration: Vite → Next.js** | 🔄 In progress: Stage 2 of 7 done (see below) |
-| 2. Auth & permissions | ⏭ After the migration |
+| 2. Auth & permissions | 🔄 2a (backend auth core) ✅ 2026-11-13 · 2b (frontend auth flows) ⏭ next · 2c (profiles, capability requests, admin) |
 | 3a. Orgs, roster, groups, teams, memberships | Not started |
 | 3b. Schedules, sessions, attendance | Not started |
 | 3c. Fees & payments | Not started |
+| 3d. Coaching development (programmes, assessments, progression) | Not started. **Added to MVP 2026-11-10** |
 | 4. Player experience | Not started |
-| 5. Community | Not started |
+| 5a. Community (posts, events, notifications) | Not started |
+| 5b. Competitions (league/knockout, fixtures, results, standings) | Not started. **Added to MVP 2026-11-10** |
 | 6. Hardening & deploy prep | Not started |
+
+---
+
+## Phase 2a: backend authentication core (2026-11-13)
+
+### Delivered
+- **Models:**
+  - `User`: capabilities default `['player']`, `passwordHash` never selected by default, `tokenVersion`, `status`, `emailVerifiedAt`
+  - `PlayerProfile`: created with the user in one transaction
+  - `RefreshToken`: SHA-256 hash, `familyId`, `replacedBy`, TTL index
+  - `EmailToken`: verify/reset, single-use, TTL index
+- **Endpoints** (`/api/v1/auth/*`): register, verify-email, resend-verification, login, refresh, logout, session (non-rotating), forgot-password, reset-password, plus `GET /me` (Bearer).
+- **Security behaviour:**
+  - argon2id password hashing; length-based policy (10–128 characters), shared with the frontend through `packages/shared/src/validation/auth.ts`
+  - login requires a verified email (`EMAIL_NOT_VERIFIED`) and an active account (`ACCOUNT_SUSPENDED`)
+  - same error for a wrong password and an unknown email, with a dummy hash compare to equalise timing
+  - no account enumeration: register, resend and forgot-password answer identically, and an existing owner gets an "account exists" email instead of a second account
+  - access JWT (HS256, 15 min, `iss`/`aud` checked; claims: `sub`, `tv`, `caps`) in the body only; refresh token only as cookie `fg_rt` (`HttpOnly; SameSite=Lax; Path=/`, `Secure` in production); auth responses carry `Cache-Control: no-store`
+  - refresh rotation with an atomic claim and reuse detection (revokes the whole family); a 10 s grace period for concurrent tabs; dead cookies are cleared
+  - refresh and logout require `X-Requested-With: fitgeng` and an allowed `Origin`
+  - password reset revokes every refresh token and bumps `tokenVersion` (outstanding access tokens die), and verifies the address if needed
+  - `authenticate` re-reads the user on every request, so suspension or revocation takes effect immediately; `requirePlatformAdmin` is ready for 2c
+  - rate limiting on credential and email endpoints (`AUTH_RATE_LIMIT` per 15 min per IP), Redis-backed with an automatic in-memory fallback
+- **Email:** provider abstraction (`log` for dev with links in the console, `memory` for tests, `sendgrid` for production); templates kept separate from logic and coloured from `theme.ts`; delivery failures never fail the request.
+- **Config:**
+  - new env vars `JWT_ACCESS_SECRET` (required, ≥ 32 characters), `JWT_ACCESS_TTL_SECONDS`, `REFRESH_TOKEN_TTL_DAYS`, `AUTH_RATE_LIMIT`, `EMAIL_PROVIDER`, `SENDGRID_API_KEY`, `EMAIL_FROM_*`
+  - production refuses to start without SendGrid; production Compose refuses to start without `JWT_ACCESS_SECRET` and `SENDGRID_API_KEY`
+  - a dev secret was generated into the local `.env`
+- **Implementation note:** because `sanitizeFilter` is on, server-built operator queries wrap only the operator object in `mongoose.trusted()` (e.g. `expiresAt: notExpired()`). The first attempt wrapped the whole filter, which the sanitiser still neutralised; the tests caught it.
+
+### Verification
+- Backend: 71 tests passing (28 new for auth and rate limiting):
+  - registration: transactional profile, normalised email, no enumeration
+  - verification and resend: single-use links, older links invalidated
+  - login: unverified, suspended, identical errors
+  - cookie flags; JWT claims; Bearer auth with forged, expired and suspended tokens
+  - refresh: rotation, CSRF and Origin checks, theft detection revoking the family, grace window, expiry clearing the cookie
+  - session: non-rotating, no tokens
+  - logout: per device
+  - reset: signs out everywhere and kills old access tokens; reused links rejected; verifies the email
+  - rate limit: 429 envelope with the in-memory store
+- Typecheck (all workspaces) and ESLint: clean.
+- **End-to-end without Docker** (real API on an in-memory MongoDB replica set, production Next.js server), all 14 steps passed:
+  1. register → 202
+  2. login before verifying → `EMAIL_NOT_VERIFIED`
+  3. verification link printed by the log provider
+  4. verify → 200
+  5. login → access token and `fg_rt` cookie
+  6. `/me` with Bearer → 200
+  7. `/auth/session` → `memberships: []`
+  8. **`/manage` rendered for a real signed-in user** through the server-side session check (no-organisation page for a player)
+  9. `/player` → 200
+  10. `/manage/ikoyi` → 404 (not a member)
+  11. refresh → 200
+  12. refresh without the CSRF header → 403
+  13. logout → 204
+  14. a stale cookie → redirected to login
+- **Not yet run:** the new backend in the Docker dev stack (Docker crashed during the rebuild). After Docker is healthy: `docker compose up -d --build --renew-anon-volumes`, because the backend has a new native dependency (argon2).
+
+### Next: 2b (frontend auth flows)
+Login, register, verify-email, forgot/reset password pages (shared zod schemas, `safeNextPath`); `auth` slice with the access token in memory; RTK Query base query with Bearer header and a refresh-on-401 mutex; logout; session-aware navigation.
 
 ---
 
@@ -28,11 +91,50 @@ Goal: server-rendered, indexable public pages; Express stays the only backend. T
 | 2. Next.js foundation | ✅ 2026-11-10 |
 | 3. Route migration + unified `/manage` application | ✅ 2026-11-10 |
 | 4. SEO + read-only Sports catalogue | ✅ 2026-11-10 |
-| 5. Backend integration | ⏭ Next. Mostly done already: session check (Stage 3), server fetch layer (Stage 4); remaining: ARCHITECTURE revision of D12/D13 once auth decisions are confirmed |
-| 6. Docker production image + Nginx reverse proxy | Pending |
-| 7. Validation | Pending |
+| 5. Backend integration | ✅ 2026-11-10 |
+| 6. Docker production image + Nginx reverse proxy | ✅ 2026-11-13 (images built and run) |
+| 7. Validation | ✅ 2026-11-13. **Migration complete** |
 
-**Decisions:** a single permission-driven `/manage` app ✅ (confirmed and implemented). Colours in `theme.ts` ✅. **Still awaiting confirmation:** refresh cookie `Path=/; SameSite=Lax` + `GET /auth/session` (Stage 3's server-side session check already calls this endpoint, so it's now effectively required); pulling the read-only Sports catalogue forward; Nginx in front of Next.js in production; whether competition and coaching-development modules join the MVP.
+**Decisions (all confirmed):** single permission-driven `/manage` app; colours in `theme.ts`; Sports catalogue pulled forward; competition and coaching modules in the MVP (Phases 3d/5b); refresh cookie `fg_rt` with `Path=/; SameSite=Lax` plus non-rotating `GET /auth/session` (D12); Nginx in front of Next.js in production (D13).
+
+### Stage 5 delivered: backend integration
+- ARCHITECTURE revised for the confirmed design:
+  - D1: Next.js frontend, no API routes or business logic in it
+  - D12: `fg_rt` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/`) plus non-rotating `/auth/session`
+  - D13: Nginx routes `/api` to Express and the rest to Next.js; dev uses rewrites; server code uses `INTERNAL_API_URL`
+  - also updated: §2 layout, §5 route map, §6.1 CSRF rules, §6.4 rendering and state, §6.6 Docker
+- `safeNextPath()` (`lib/auth/redirect.ts`): guards the `next` parameter for post-login redirects. It blocks `//host`, absolute URLs, backslash tricks, raw control characters and `javascript:`. 14 tests.
+- Already in place from earlier stages: server-side session check (Stage 3), server data client with ISR (Stage 4).
+
+### Stage 6 delivered: production Docker configuration
+- **`apps/frontend/Dockerfile`:**
+  - `dev` stage unchanged
+  - `build` stage takes `NEXT_PUBLIC_*` and `GOOGLE_SITE_VERIFICATION` as build args
+  - `prod` stage: `node:22-alpine` running only the standalone server, static assets and `public/`; non-root owner (ISR cache is writable); health check on `/robots.txt`
+- **`infrastructure/nginx/default.conf`:** reverse proxy (`/api/` to Express, `/_next/static/` with a one-year immutable cache, everything else to Next.js), forwarded headers and request ID, security headers, gzip, `/healthz`.
+- **`docker-compose.prod.yml`** (project `fitgeng-prod`, separate from dev):
+  - only `nginx` is published (`HTTP_PORT`, default 8080)
+  - frontend gets `INTERNAL_API_URL=http://backend:4000/api/v1`
+  - backend runs production with `TRUST_PROXY=1`
+  - Mongo (replica set) and Redis are internal only
+  - start order follows health checks
+  - validated with `docker compose config`
+- README: production section (domain before build, TLS in front, Search Console steps).
+
+### Stage 7 validation
+- **Tests:** backend 43 passing; frontend 177 passing (18 suites).
+- **New hydration test** (`app/__tests__/hydration.test.tsx`):
+  - server-renders the landing page (light and stored-dark theme), a sport page, the player layout and the management shell, then hydrates the HTML in jsdom the way a browser would
+  - fails on any recoverable hydration error or console error
+  - a control case confirms the harness does catch a real mismatch
+- **Full monorepo production build** (`npm run build`) with the API deliberately unreachable: succeeds. `/sports/[slug]` is ISR; static generation took 6.7 s.
+- `tsc` across all workspaces and ESLint: clean.
+- **Earlier live checks** (Stages 3–4, dev Docker and the standalone server): SSR HTML and metadata, sitemap and robots, ISR MISS→HIT, route protection and the cross-container session check.
+- **Production Compose run (2026-11-13), through Nginx on :8080:** all 5 services healthy, only Nginx published. 23/23 checks passed: `/healthz`; `/api` routed to Express (Mongo and Redis up); request-ID propagation; landing and `/sports/tennis` SSR content; canonical URL on the public origin; JSON-LD; ISR MISS→HIT; unknown sport 404; `/_next/static` cached 1 year immutable with gzip; no `X-Powered-By`, nginx version hidden, X-Frame-Options and nosniff; sitemap with 9 URLs, no private paths; robots.txt; `/manage` redirect without a cookie and with a forged cookie (API rejects); `/login` renders; per-sport OG image.
+- **Fixed during that run:** the first run served a 2-URL sitemap. It had been prerendered during the image build with no API reachable, the Stage 4 known issue showing up for real. `sitemap.ts` is now rendered per request (`force-dynamic`, API data still cached 5 min). After rebuilding, the sitemap listed all 9 URLs immediately.
+- **Still open:** a manual real-browser console check (the automated hydration test covers the same ground).
+
+**Docker incidents:** during Stage 7, Docker Desktop's engine crashed ("Docker Desktop is unable to start"), and `wsl -l` hung. With the user's approval, Docker Desktop was stopped and `wsl --shutdown` attempted. It failed with `Wsl/CO_E_SERVER_EXEC_FAILURE`: the Windows `WslService` is stuck in **StopPending**. Recovering needs administrator rights (kill the stuck service and restart it) or a reboot. The production image build that ran just before the crash reported success, but its output couldn't be confirmed, so those images count as unverified. **Resolved 2026-11-13** after the user restarted Windows and WSL; the production stack was then built and verified (above). Docker Desktop crashed again later the same day ("unable to start" while extracting an image layer during a dev rebuild), and port 4000 stayed held by a half-dead `com.docker.backend` process. The Phase 2a end-to-end check was therefore run without Docker (below).
 
 ### Stage 4 delivered: Sports catalogue and SEO foundation
 - **Backend `sports` module**, pulled forward from Phase 2 (read-only):

@@ -1,0 +1,112 @@
+# Production stack. Run:
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+# Only Nginx is published. Everything else is reachable only on the internal network.
+# Set NEXT_PUBLIC_SITE_URL to the real public origin before building.
+
+name: fitgeng-prod
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - '${HTTP_PORT:-8080}:80'
+    volumes:
+      - ./infrastructure/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1/healthz >/dev/null || exit 1']
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      target: prod
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:8080}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_BRAND_NAME: ${NEXT_PUBLIC_BRAND_NAME:-}
+        NEXT_PUBLIC_BRAND_TAGLINE: ${NEXT_PUBLIC_BRAND_TAGLINE:-}
+        NEXT_PUBLIC_BRAND_DESCRIPTION: ${NEXT_PUBLIC_BRAND_DESCRIPTION:-}
+        NEXT_PUBLIC_BRAND_SUPPORT_EMAIL: ${NEXT_PUBLIC_BRAND_SUPPORT_EMAIL:-}
+        NEXT_PUBLIC_BRAND_PRIMARY_COLOR: ${NEXT_PUBLIC_BRAND_PRIMARY_COLOR:-}
+        NEXT_PUBLIC_BRAND_ACCENT_COLOR: ${NEXT_PUBLIC_BRAND_ACCENT_COLOR:-}
+        NEXT_PUBLIC_BRAND_LOGO_URL: ${NEXT_PUBLIC_BRAND_LOGO_URL:-}
+        GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
+    environment:
+      # Server-side calls go straight to Express on the internal network.
+      INTERNAL_API_URL: http://backend:4000/api/v1
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: prod
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MONGO_URI: mongodb://mongo:27017/fitgeng?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      APP_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:8080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # One proxy (Nginx) in front: trust X-Forwarded-For for client IPs and rate limits.
+      TRUST_PROXY: 1
+      BRAND_NAME: ${BRAND_NAME:-}
+      BRAND_SUPPORT_EMAIL: ${BRAND_SUPPORT_EMAIL:-}
+      # Secrets: required, and never baked into images. Compose refuses to start without them.
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET (at least 32 random characters)}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+      AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-20}
+      EMAIL_PROVIDER: sendgrid
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:?Set SENDGRID_API_KEY for transactional email}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@fitgeng.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-FitGeng}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:8.0
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval "try { rs.status() } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }) }
+          print(db.hello().isWritablePrimary)" | grep -q true
+      interval: 5s
+      timeout: 10s
+      start_period: 20s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no', '--maxmemory', '128mb', '--maxmemory-policy', 'allkeys-lru']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

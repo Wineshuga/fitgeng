@@ -67,6 +67,20 @@ npm run dev:frontend     # http://localhost:3000 (proxies /api to :4000)
 
 When connecting from the host, keep `directConnection=true` in `MONGO_URI`. The replica-set member advertises the Docker hostname `mongo`, which the host can't resolve.
 
+### Production (Docker)
+
+```bash
+# In .env (or the host environment): set the real public origin BEFORE building.
+NEXT_PUBLIC_SITE_URL=https://your-domain.example
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+- **Nginx** is the only published service (`HTTP_PORT`, default 8080). It routes `/api/*` to Express and everything else to the Next.js server, so the site and API share one origin. Put TLS in front of it (a load balancer, Caddy, or certbot on the host).
+- **Frontend:** the Next.js standalone server runs as non-root. Public data pages are built on first request and regenerated in the background (ISR), so the image build doesn't need a running API. Pages prerendered during the build show their fallback (no sports list) until their first regeneration, at most 5 minutes after start.
+- **Backend:** compiled JS, production dependencies only, non-root, `TRUST_PROXY=1`.
+- **MongoDB and Redis** aren't published. Mongo authentication (keyfile and users) is part of MVP Phase 6, before going live.
+- **SEO:** `sitemap.xml` and `robots.txt` are served by Next.js. Submit `https://your-domain/sitemap.xml` in Google Search Console after verifying with `GOOGLE_SITE_VERIFICATION` (HTML-tag method, set at build time).
+
 ## Scripts (repo root)
 
 | Command | Purpose |

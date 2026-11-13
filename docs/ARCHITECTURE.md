@@ -2,7 +2,7 @@
 
 > Status: **APPROVED** (product decisions in §9). Implementation in progress; see `docs/PROGRESS.md`.
 >
-> **Frontend migration in progress (2026-11-10):** the React + Vite SPA is moving to **Next.js 16 (App Router)** for server-rendered, indexable public pages. Express remains the only backend. Sections describing the frontend (D13, §2, §6.4, §6.6) will be revised when the migration's open decisions are confirmed. Until then, `docs/PROGRESS.md` tracks the migration.
+> **Frontend: Next.js 16 (App Router)** since 2026-11-10, replacing the original React + Vite SPA for server-rendered, indexable public pages. Express remains the only backend. D1, D12, D13, §2, §6.1, §6.4 and §6.6 were revised accordingly (decisions confirmed 2026-11-10).
 > Last updated: 2026-11-09
 
 ---
@@ -11,7 +11,7 @@
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| D1 | **Modular monolith**: one Express API split into feature modules, one React SPA. | Matches spec; simple to deploy on one VPS; modules can split out later if needed. |
+| D1 | **Modular monolith**: one Express API split into feature modules, one Next.js frontend (no business logic or API routes in Next.js). | Matches spec; simple to deploy on one VPS; modules can split out later if needed. |
 | D2 | **TypeScript everywhere**, npm workspaces: `apps/frontend`, `apps/backend`, `packages/shared`. | Shared types and validation across the API boundary. |
 | D3 | **Zod schemas in `packages/shared`** are the single source of truth for request validation (backend) and form validation (frontend). Types are inferred from the schemas. | One definition for each rule; frontend and backend can't drift apart. |
 | D4 | **The Organisation is the boundary for each tenant's data.** Every group, team, roster player, schedule, session, fee, payment and event belongs to exactly one organisation. A solo coach gets a personal "academy" organisation created automatically. | Gives coaches and organisers one code path. Every management query is filtered by `orgId`, which is the main defence against users reading other organisations' records by guessing IDs (IDOR). |
@@ -22,8 +22,8 @@
 | D9 | **Payments module uses separate obligations (`Charge`) and receipts (`Payment`),** with a `provider` field on each payment (`manual` for now). | Outstanding balance = charges − allocated payments. Paystack or Flutterwave can be added later as another provider without changing the data model. |
 | D10 | **MongoDB runs as a single-node replica set**, in dev as well as prod. | Multi-document transactions require a replica set. Needed for approving joins, recording payments and capping event registrations. |
 | D11 | **Redis is optional at runtime.** Every Redis call goes through a wrapper that treats failures as cache misses or skips. Auth tokens, email tokens and other state that must persist live in MongoDB (TTL indexes). Redis holds only caches, rate-limit counters and job locks. | Spec: the app must keep working if the cache is down. |
-| D12 | **Access token in memory and refresh token in an HttpOnly cookie.** Access JWT lasts 15 minutes and is sent as a Bearer header. The refresh token is opaque, rotated on every use, stored hashed in MongoDB, and reuse of an old one is detected. | Nothing sensitive in `localStorage`. Only the refresh and logout endpoints read the cookie, so CSRF protection is only needed there. |
-| D13 | **One origin in production**: Nginx serves the SPA and proxies `/api` to the backend. In dev, Vite proxies `/api` the same way. | Allows `SameSite=Strict` cookies and avoids most CORS complexity. |
+| D12 | **Access token in browser memory, refresh token in an HttpOnly cookie.** Access JWT lasts 15 minutes and is sent as a Bearer header. The refresh token (`fg_rt`) is opaque, rotated on every use, stored hashed in MongoDB, with reuse detection. The cookie is `HttpOnly; Secure; SameSite=Lax; Path=/`, so the Next.js server sees it on page requests. A **non-rotating `GET /auth/session`** validates it for server-side page protection and returns the user, capabilities and memberships (no tokens). *(Revised 2026-11-10.)* | Nothing sensitive in `localStorage` or rendered HTML. Server Components can't set cookies, so they can't call the rotating refresh endpoint; the session endpoint gives them a read-only check. `Lax` lets links from verification emails arrive signed in. CSRF protection stays on the cookie-reading endpoints (§6.1). |
+| D13 | **One origin in production**: Nginx sits in front, routing `/api/*` to Express and everything else to the Next.js server. In dev, Next.js `rewrites` proxy `/api` the same way. Next.js server-side code calls Express directly on the internal network (`INTERNAL_API_URL`). *(Revised 2026-11-10.)* | Same-site cookies, no CORS in normal use, static assets and API calls never go through Node's page renderer, and the internal API URL never reaches browsers. |
 | D14 | **Background jobs run in-process** with `node-cron` and a Redis `SET NX` lock (lock skipped if Redis is down and there is a single instance). | Enough for MVP volumes. BullMQ can replace it later without changing services. |
 | D15 | **Time zones**: all instants stored in UTC. Recurring times are stored as local wall-clock time plus an IANA zone (`Africa/Lagos` by default) and converted with **Luxon**. | Correct handling even if the platform expands to zones that use daylight saving. |
 | D16 | **File uploads** go through a `StorageProvider` interface (`upload`, `delete`, `getUrl`). Production uses the **Cloudinary** driver. A **local** driver (Docker volume) is used in dev and tests when no Cloudinary credentials are set. The backend validates each file (magic bytes, 5 MB limit, image types only), re-encodes it with `sharp` (strips EXIF), then hands it to the provider. Documents store `{ provider, key, url }`, not just a URL, so files can be deleted or migrated later. | Cloudinary from the first deployment (decision Q5). Changing provider means adding one driver file and changing one env var. |
@@ -36,19 +36,21 @@
 ```text
 fitgeng/
 ├── apps/
-│   ├── frontend/                 React + Vite + Tailwind + RTK Query
+│   ├── frontend/                 Next.js 16 (App Router) + Tailwind + Redux Toolkit / RTK Query
 │   │   └── src/
-│   │       ├── app/              store setup, router, providers
-│   │       ├── components/       ui/ (Button, Input, Modal, EmptyState…) + shared composites
-│   │       ├── contexts/         ThemeContext, BrandingContext (only these)
-│   │       ├── features/         auth/, orgs/, players/, groups/, schedules/, attendance/,
-│   │       │                     payments/, posts/, events/, discover/, notifications/
-│   │       │                     (each: api.ts (RTK Query endpoints), slice?, components/, pages/)
-│   │       ├── hooks/            useAuth, usePermissions, useActiveOrg, useDebounce…
-│   │       ├── layouts/          PublicLayout, PlayerLayout, ManageLayout
-│   │       ├── routes/           route tree, guards (RequireAuth, RequireCapability, RequireOrgRole)
-│   │       ├── services/         baseApi (fetchBaseQuery + re-auth mutex), http helpers
-│   │       └── utils/            formatting (₦, dates in Africa/Lagos), etc.
+│   │       ├── app/              routes: (public) SSR/ISR pages, (auth), (player), (manage);
+│   │       │                     root layout, providers, sitemap.ts, robots.ts, OG images, error/404/403
+│   │       ├── components/       ui/ (Button, Spinner, QueryState…) + shared composites
+│   │       ├── contexts/         ThemeContext (the only Context)
+│   │       ├── features/         manage/ (module registry, shell, switcher), sports/, system/, …
+│   │       │                     (each: server.ts for Server Components, api.ts for RTK Query, components/)
+│   │       ├── layouts/          PlayerLayout (public and manage shells live with their routes/features)
+│   │       ├── lib/              server-only: api/server.ts, auth/session.ts, serverEnv; seo/ helpers
+│   │       ├── routes/           player navigation config
+│   │       ├── services/         baseApi (RTK Query; re-auth mutex arrives in Phase 2)
+│   │       ├── store/            makeStore, StoreProvider (per instance), uiSlice
+│   │       ├── proxy.ts          cheap cookie gate for /manage and /player
+│   │       └── utils/            formatting helpers
 │   └── backend/
 │       ├── src/
 │       │   ├── config/           env (zod-validated), db, redis, logger
@@ -70,7 +72,7 @@ fitgeng/
 │   ├── types/                    inferred types + API envelope types
 │   └── brand.ts
 ├── infrastructure/
-│   ├── nginx/                    nginx.conf (SPA + /api proxy + /uploads + security headers)
+│   ├── nginx/                    default.conf: reverse proxy (/api → Express, / → Next.js), security headers
 │   └── docker/                   mongo-init (replica set), scripts
 ├── docker-compose.yml            dev
 ├── docker-compose.prod.yml       prod
@@ -317,6 +319,41 @@ Two statuses exist on purpose. Roster `Player.status` (pending/active/inactive/g
 - `provider: 'manual'` plus `providerRef?`, `providerPayload?`, reserved for a future gateway.
 - Recording or voiding a payment runs in a **transaction** that updates `Charge.amountPaidKobo` and `status`. The service checks that `playerId` and `groupId` on the payment match every allocated charge and the same `orgId`.
 
+#### Coaching development (Phase 3d)
+
+**TrainingProgramme** (curriculum)
+- `orgId` [idx], `sportId`, `name`, `description?`, `skillLevel`, `createdBy`, `status: 'draft'|'active'|'archived'`
+- `units: [{ _id, title, objectives: string[], drills: [{ name, description?, durationMinutes? }], order }]`. Embedded because units are always read and edited with their programme.
+
+**ProgrammeAssignment**: `orgId`, `programmeId`, `targetType: 'group'|'team'`, `targetId`, `startDate`, `endDate?`, `currentUnitId?`, `assignedBy`. [uniq (programmeId, targetType, targetId)]. Sessions can reference the unit covered (`Session.programmeUnitId?`).
+
+**AssessmentTemplate**: `orgId`, `sportId`, `name`, `criteria: [{ key, label, description? }]` (scored 1–5), `status`. Criteria keys are stable, so results stay comparable when labels change.
+
+**Assessment** (one player, one occasion)
+- `orgId`, `templateId`, `playerId` [idx (playerId, assessedAt)], `groupId?`, `assessedBy`, `assessedAt`
+- `scores: [{ criterionKey, score: 1..5, note? }]`, `overallNote?`, `visibleToPlayer: boolean` (coaches choose what players see)
+
+**Skill progression** is computed, not stored: per-player, per-criterion time series aggregated from `Assessment` (index above). Avoids keeping a second copy of the same facts in sync.
+
+**Graduation** (Phase 3a) uses `Player.status = 'graduated'` (or moving a member to a higher-level group). Recent assessments are shown as evidence; no automatic thresholds in the MVP.
+
+#### Competitions (Phase 5b)
+
+**Competition**
+- `orgId` [idx], `sportId`, `name`, `slug` (public page), `format: 'league'|'knockout'`, `season?`, `startDate`, `endDate?`
+- `visibility: 'public'|'private'`, `status: 'draft'|'published'|'in_progress'|'completed'|'cancelled'`
+- `pointsRule: { win: 3, draw: 1, loss: 0 }` (league), `tieBreakers: ('goal_difference'|'goals_for'|'head_to_head')[]`
+- `entrants: [{ teamId, seed?, withdrawnAt? }]`. Teams may belong to other organisations, entered by invitation.
+
+**Fixture**
+- `orgId`, `competitionId` [idx (competitionId, startsAt)], `round` (matchday or knockout round label), `homeTeamId`, `awayTeamId`, `startsAt`, `venue` (LocationRef)
+- `status: 'scheduled'|'postponed'|'played'|'cancelled'|'walkover'`
+- Created manually by organisers. Automatic fixture generation is out of scope.
+
+**Result** (embedded on Fixture): `{ homeScore, awayScore, winnerTeamId?, decidedBy?: 'regular'|'extra_time'|'penalties', recordedBy, recordedAt, correctedAt? }`. Recording or correcting a result runs in a transaction that also invalidates the standings cache.
+
+**Standings** are computed from played fixtures and the competition's `pointsRule` and `tieBreakers`, cached in Redis per competition, and invalidated whenever a result changes. Never stored as editable data. Knockout competitions show rounds and fixtures instead of a table. A bracket diagram is out of scope.
+
 #### Community
 
 **Post**
@@ -352,6 +389,7 @@ Two statuses exist on purpose. Roster `Player.status` (pending/active/inactive/g
 ```
 Public / player
   POST   /auth/register | /auth/login | /auth/refresh | /auth/logout
+  GET    /auth/session             (non-rotating; validates the fg_rt cookie for Next.js server rendering → Session)
   POST   /auth/verify-email | /auth/resend-verification | /auth/forgot-password | /auth/reset-password
   GET    /me                       PATCH /me
   GET    /me/capability-requests   POST /me/capability-requests   POST /me/capability-requests/:id/withdraw
@@ -396,10 +434,12 @@ Platform admin
 ## 6. Cross-cutting concerns
 
 ### 6.1 Security
-- **Passwords:** argon2id. Password rules defined in a shared zod schema. Login rate-limited per IP and per email.
-- **JWT:** access token signed HS256 with a 15-minute expiry. Claims are `sub`, `tv` (tokenVersion) and `caps`. Capabilities are re-read from the database for sensitive operations, so revoking a capability takes effect immediately.
-- **Refresh:** opaque random token in a cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`. Rotated on every use, with reuse detection.
-- **CSRF:** only `/auth/refresh` and `/auth/logout` read the cookie. They also require the header `X-Requested-With: fitgeng` and check `Origin` against an allow-list. All other endpoints use Bearer tokens, which browsers don't attach automatically, so CSRF doesn't apply to them.
+- **Passwords:** argon2id; length-based policy (10–128 characters) in a shared zod schema. Credential and email-sending endpoints are rate-limited per IP (Redis store with in-memory fallback). Per-account login throttling is a Phase 6 hardening item.
+- **Accounts:** login requires a verified email. Register, resend-verification and forgot-password respond identically whether or not the email exists (no account enumeration); wrong-password and unknown-email errors are identical, with timing equalised by a dummy hash compare. Completing a password reset signs out every device (all refresh tokens revoked, `tokenVersion` bumped).
+- **JWT:** access token signed HS256 with a 15-minute expiry, `iss`/`aud` checked. Claims are `sub`, `tv` (tokenVersion) and `caps`. `authenticate` re-reads the user on every request, so suspension, capability changes and sign-out-everywhere take effect immediately.
+- **Refresh:** opaque random token in cookie `fg_rt`: `HttpOnly; Secure; SameSite=Lax; Path=/`. Rotated on every use, with reuse detection.
+- **CSRF:** only `/auth/refresh`, `/auth/logout` and the read-only `/auth/session` read the cookie. Refresh and logout change state, so they require the header `X-Requested-With: fitgeng` and an `Origin` on the allow-list. `SameSite=Lax` also stops the cookie being sent on cross-site POSTs. `/auth/session` only reads, never rotates, and returns no tokens. All other endpoints use Bearer tokens, which browsers don't attach automatically.
+- **Post-login redirects:** the `next` parameter passes through `safeNextPath()` (same-site paths only), which blocks open redirects.
 - **Other protections:** `helmet`, strict CORS allow-list from env, `express-mongo-sanitize`-style key stripping, 100 kb JSON body limit, and rate limiting (Redis store, falling back to an in-memory store).
 - **Errors:** an `ApiError` class plus a central handler. Stack traces never leave the server in production. Every response carries a `requestId` header.
 - **Logging:** `pino` + `pino-http` with secrets, cookies and auth headers redacted.
@@ -414,13 +454,14 @@ Platform admin
 - `EmailService.send(templateId, to, data)` renders HTML and text templates kept in `emails/templates`, using the brand config. The provider is chosen by env: `sendgrid` in prod, `log` in dev and tests (prints a link instead of sending). Local dev therefore needs no SendGrid key.
 - Sending is non-blocking with retry. A failed email never fails the business transaction. Verification and reset emails can be re-requested.
 
-### 6.4 Frontend state
-- **RTK Query** handles all server state, with tag-based invalidation (`Group`, `Membership`, `Session`, …). The base query includes a re-auth mutex: on a 401 it calls `/auth/refresh` once, then retries the original request.
-- **Redux slices:** `auth` (access token, current user, capabilities) and `ui` (active org ID, persisted to localStorage). No other global state.
-- **Context:** `ThemeContext` (light/dark) and `BrandingContext` (brand config). Nothing is stored in both Redux and Context.
-- Route guards: `RequireAuth`, `RequireCapability`, `RequireOrgRole`. These only control what the UI shows; the backend still enforces every rule.
-- Layouts: **PublicLayout** (marketing header), **PlayerLayout** (bottom tab bar on mobile, top nav on desktop), **ManageLayout** (collapsible sidebar plus org switcher). Users with both hats switch modes from the avatar menu.
-- Every data view uses a shared pattern for loading, error and empty states (`<QueryState>` component).
+### 6.4 Frontend rendering and state
+- **Server Components by default.** Public pages fetch from Express on the server (`lib/api/server.ts`, server-only) and use ISR: built on first request (no live API needed at build time), regenerated in the background. Client Components are used only for interactivity: theme toggle, live status, nav active state, management drawer and switcher, forms.
+- **Authenticated areas** (`/player`, `/manage`) render dynamically. Layouts call `getSession()` / `requireManageContext()` on the server; the browser receives only non-sensitive user info, never tokens.
+- **RTK Query** handles client-side server state, with tag-based invalidation. In Phase 2 the base query gets the access token and a re-auth mutex (on 401, call `/auth/refresh` once, then retry).
+- **Redux:** `makeStore()` per `StoreProvider` instance (never a module-level store, so nothing leaks between requests). Slices: `ui` now, `auth` (access token in memory, current user) in Phase 2. The current organisation comes from the URL (`/manage/[org]`), so it isn't duplicated in client state.
+- **Context:** `ThemeContext` only. Brand config is a static module import.
+- **Hydration safety:** a blocking inline script applies the theme before paint; nothing reads `localStorage` during render; browser state is restored after mount.
+- Every client data view uses the shared loading/error/empty/success pattern (`<QueryState>`).
 
 ### 6.5 Testing strategy
 - **Backend:** Jest + ts-jest + Supertest against `mongodb-memory-server` running as a replica set (so transactions work). Redis is mocked as unavailable by default, which also tests the fallback path, and is enabled in specific cache tests. Policy and service unit tests sit next to the code. Integration tests go in `tests/`.
@@ -435,8 +476,8 @@ Platform admin
   7. Event registration never exceeds capacity under concurrent requests.
 
 ### 6.6 Docker
-- **Dev (`docker-compose.yml`):** `mongo` (replica set initialised by a healthcheck script, named volume), `redis`, `backend` (`tsx watch`, source bind-mounted), `frontend` (Vite dev server, bind mount). `depends_on` waits for the health checks. Ports are exposed for local tools.
-- **Prod (`docker-compose.prod.yml`):** multi-stage builds. Backend runs compiled JS as a non-root user. The frontend is built into an **nginx** image that serves the SPA, proxies `/api` and serves `/uploads`. Mongo and Redis are only reachable on the internal network. Secrets come from `.env` or the host environment, never from images.
+- **Dev (`docker-compose.yml`):** `mongo` (replica set initialised by a healthcheck script, named volume), `redis`, `backend` (`tsx watch`, source bind-mounted), `frontend` (`next dev --webpack` with polling, bind mount, container-only `node_modules` and `.next`). `depends_on` waits for the health checks. Host ports are configurable.
+- **Prod (`docker-compose.prod.yml`):** `nginx` is the only published service and routes `/api` to `backend` and everything else to `frontend`. `frontend` is the Next.js standalone server (non-root, ISR cache in the container). `backend` runs compiled JS as non-root with production dependencies only. Mongo and Redis are reachable only on the internal network. Configuration comes from `.env` or the host environment, never from images. Mongo authentication (keyfile + users) is added in MVP Phase 6.
 
 ---
 
@@ -451,8 +492,10 @@ Each phase ends with passing tests, an updated `docs/PROGRESS.md`, and a short r
 | **3a. Orgs, roster, groups, teams, memberships** | Organisations + members, Player roster, invitations (email), groups, teams, staff, membership state machine, uploads (StorageProvider: Cloudinary + local drivers) | Cross-org isolation, join rules, duplicate prevention, staff scoping, upload validation |
 | **3b. Schedules, sessions, attendance** | Schedule CRUD, session materialisation job + Luxon, one-off sessions, cancel/edit, attendance bulk upsert, summaries | Idempotent generation, timezone correctness, per-player schedules, duplicate attendance |
 | **3c. Fees & payments** | Fee plans, assignments, charge generation job, manual payments with allocations (transactional), void, outstanding/overdue views, dashboard overview endpoint (cached) | Payment/charge integrity, cross-player rejection |
+| **3d. Coaching development** | Training programmes + assignments to groups/teams, assessment templates, per-player assessments, progression views (computed from assessments), player-visible assessment summaries | Org isolation; only coaching-permitted users write; players see only their own `visibleToPlayer` assessments; progression aggregation correctness |
 | **4. Player experience** | Player home, Discover (filters + caching), public group/coach/org pages, join/request flows, My Groups, My Schedule, My Payments, attendance history | Discover filters, privacy of private groups, UI interaction tests |
-| **5. Community** | Posts + feed + group announcements + CTAs, events + registrations + invitations, notifications (in-app + email triggers), activity log | Feed privacy, capacity under concurrency, notification triggers |
+| **5a. Community** | Posts + feed + group announcements + CTAs, events + registrations + invitations, notifications (in-app + email triggers), activity log | Feed privacy, capacity under concurrency, notification triggers |
+| **5b. Competitions** | Competitions (league / knockout), entrant teams (incl. cross-organisation invitations), manual fixtures, results with corrections, computed standings (Redis-cached), public competition pages (SSR + sitemap) | Only competition-permitted users manage; standings correct for points rules and tie-breakers; result correction recomputes standings; private competitions never public |
 | **6. Hardening & deploy prep** | Security review pass, permission audit, prod compose + nginx, API docs (OpenAPI generated from zod via `zod-to-openapi`), README setup, seed script with demo data | Prod compose build runs end-to-end |
 
 ---
@@ -465,7 +508,7 @@ Each phase ends with passing tests, an updated `docs/PROGRESS.md`, and a short r
 - **SMS / WhatsApp / push notifications**: in-app and email only. WhatsApp is worth prioritising after the MVP for the Nigerian market.
 - **Geo "near me" search**: filters use state and area only.
 - **Real-time updates** (websockets), direct messaging, comments and likes on posts, algorithmic feed.
-- **Competition and coaching-development modules.** The permission model, navigation and routes exist (§3.3, §3.5), but the features are planned, not built: competitions (tournaments/leagues), fixtures, results and standings (the original spec excluded brackets, league tables and fixture generation from the MVP), plus training programmes, assessments and skill progression. Graduation is in the MVP (player status `graduated`, Phase 3a). When scheduled, the intended data model is `Competition` (type, format, season, entrant teams) → `Fixture` (home/away team, time, venue, status) → `Result` (score, recorded by), with standings derived from results rather than stored, and `TrainingProgramme`, `Assessment` (criteria scores per player) and `SkillProgress` (snapshots over time).
+- **Within competitions and coaching (scheduled in Phases 3d and 5b):** automatic fixture generation, bracket diagrams, player rankings, cross-season records and automatic graduation thresholds remain out of scope. Fixtures are entered manually and standings are computed from results.
 - **Job queue** (BullMQ): in-process cron with a Redis lock.
 - **Internationalisation / multi-currency**: NGN and English only.
 
@@ -480,3 +523,5 @@ Each phase ends with passing tests, an updated `docs/PROGRESS.md`, and a short r
 | Q3 | Which sessions do per-session fees charge for? | **Attended sessions only.** A charge is created when attendance is marked `present` (or `late`). If attendance changes away from present, the charge is removed or voided, provided nothing has been paid against it. |
 | Q4 | Roster status after self-joining a public group? | **`active`.** |
 | Q5 | File storage in production? | **Cloudinary from the first deployment**, behind a replaceable `StorageProvider` (D16). |
+| Q6 | Unified management app? (2026-11-10) | **One permission-driven `/manage`** for coaches and organisers (§3.3–3.5). No separate dashboards. |
+| Q7 | Competition and coaching-development modules in the MVP? (2026-11-10) | **Yes.** Coaching development in **Phase 3d** (programmes, assessments, progression); competitions in **Phase 5b** (league/knockout, manual fixtures, results, computed standings). This overrides the original brief's exclusion of league tables. Automatic fixture generation, brackets and rankings stay out (§8). |

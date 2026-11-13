@@ -14,6 +14,7 @@ import { ApiError } from '../utils/ApiError';
 export interface AccessContext {
   userId: string;
   capabilities: Capability[];
+  isPlatformAdmin?: boolean;
   membership?: { orgId: string; role: OrgRole };
 }
 
