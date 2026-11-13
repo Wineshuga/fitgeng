@@ -5,6 +5,7 @@ import { sendNoContent, sendSuccess } from '../../utils/response';
 import { authService, type ClientInfo, type IssuedSession } from './auth.service';
 import { User, toAuthUserDto } from '../users/user.model';
 import { ApiError } from '../../utils/ApiError';
+import { devLink } from './devLinks';
 
 /** Refresh cookie (architecture D12): HttpOnly, SameSite=Lax, whole site, Secure in production. */
 const cookieOptions = (expires?: Date): CookieOptions => ({
@@ -26,12 +27,16 @@ function respondWithSession(res: Response, issued: IssuedSession): void {
   sendSuccess(res, body);
 }
 
-const accepted = (res: Response, message: string) => sendSuccess(res, { message }, 202);
+/** 202 with a message, plus the emailed link in development only (see devLinks.ts). */
+const accepted = (res: Response, message: string, emailedLink?: string) => {
+  const link = devLink(emailedLink);
+  sendSuccess(res, link ? { message, devLink: link } : { message }, 202);
+};
 
 export const authController = {
   async register(req: Request, res: Response) {
-    await authService.register(req.validated.body as RegisterInput);
-    accepted(res, 'Check your email to verify your account.');
+    const link = await authService.register(req.validated.body as RegisterInput);
+    accepted(res, 'Check your email to verify your account.', link);
   },
 
   async verifyEmail(req: Request, res: Response) {
@@ -40,8 +45,8 @@ export const authController = {
   },
 
   async resendVerification(req: Request, res: Response) {
-    await authService.resendVerification((req.validated.body as { email: string }).email);
-    accepted(res, 'If that account needs verifying, we have sent a new link.');
+    const link = await authService.resendVerification((req.validated.body as { email: string }).email);
+    accepted(res, 'If that account needs verifying, we have sent a new link.', link);
   },
 
   async login(req: Request, res: Response) {
@@ -71,8 +76,8 @@ export const authController = {
   },
 
   async forgotPassword(req: Request, res: Response) {
-    await authService.forgotPassword((req.validated.body as { email: string }).email);
-    accepted(res, 'If an account exists for that email, we have sent a reset link.');
+    const link = await authService.forgotPassword((req.validated.body as { email: string }).email);
+    accepted(res, 'If an account exists for that email, we have sent a reset link.', link);
   },
 
   async resetPassword(req: Request, res: Response) {

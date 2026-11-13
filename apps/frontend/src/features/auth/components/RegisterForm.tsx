@@ -8,9 +8,10 @@ import { Alert } from '@/components/ui/Alert';
 import { getErrorMessage } from '@/components/ui/QueryState';
 import { apiFieldErrors, validateForm, type FieldErrors } from '@/utils/forms';
 import { useRegisterMutation, useResendVerificationMutation } from '../api';
+import { DevEmailLink } from './DevEmailLink';
 
 export function RegisterForm() {
-  const [register, { isLoading, error, isSuccess }] = useRegisterMutation();
+  const [register, { isLoading, error, isSuccess, data }] = useRegisterMutation();
   const [resend, resendState] = useResendVerificationMutation();
   const [values, setValues] = useState<RegisterInput>({ firstName: '', lastName: '', email: '', password: '' });
   const [errors, setErrors] = useState<FieldErrors<RegisterInput>>({});
@@ -34,6 +35,7 @@ export function RegisterForm() {
             We sent a verification link to <strong>{values.email.trim().toLowerCase()}</strong>. Open it to activate your account.
           </p>
         </Alert>
+        <DevEmailLink href={resendState.data?.devLink ?? data?.devLink} label="Open the verification link" />
         {resendState.isSuccess ? (
           <p className="text-sm text-fg-muted">A new link is on its way.</p>
         ) : (

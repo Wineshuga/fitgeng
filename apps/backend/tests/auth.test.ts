@@ -47,7 +47,8 @@ describe('registration and email verification', () => {
   it('creates a player account and profile, normalises the email, and sends a verification link', async () => {
     const res = await request(app).post('/api/v1/auth/register').send(ada);
     expect(res.status).toBe(202);
-    expect(res.body.data).toEqual({ message: expect.any(String) });
+    // Tests use the in-memory email provider, so the dev-only link is included (see devLinks tests).
+    expect(res.body.data).toEqual({ message: expect.any(String), devLink: expect.stringContaining('/verify-email?token=') });
     expect(res.headers['set-cookie']).toBeUndefined(); // no session before verification
 
     const user = await User.findOne({ email: 'ada@example.com' }).select('+passwordHash').lean();

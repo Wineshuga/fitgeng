@@ -70,10 +70,12 @@ async function consumeEmailToken(token: string, purpose: EmailTokenPurpose) {
   return doc;
 }
 
-async function sendVerification(user: Pick<UserDoc, '_id' | 'email' | 'firstName'>) {
+/** Emails a fresh verification link and returns it (the controller decides whether it may be exposed). */
+async function sendVerification(user: Pick<UserDoc, '_id' | 'email' | 'firstName'>): Promise<string> {
   const token = await createEmailToken(user._id, 'verify_email', VERIFY_TTL_MS);
   const url = appUrl(`/verify-email?token=${token}`);
   void sendEmail({ to: user.email, ...verifyEmailTemplate(user.firstName, url) });
+  return url;
 }
 
 function assertCanSignIn(user: Pick<UserDoc, 'status' | 'emailVerifiedAt'>) {
@@ -112,8 +114,10 @@ export const authService = {
    * Creates the account and emails a verification link. Never reveals whether
    * the email was already registered: existing users get a "you already have
    * an account" email instead, and the response is identical either way.
+   *
+   * Returns the emailed verification link, if one was sent (development use only, see devLinks.ts).
    */
-  async register(input: RegisterInput): Promise<void> {
+  async register(input: RegisterInput): Promise<string | undefined> {
     const existing = await User.findOne({ email: input.email });
     if (existing) {
       if (existing.emailVerifiedAt) {
@@ -121,10 +125,9 @@ export const authService = {
           to: existing.email,
           ...accountExistsTemplate(existing.firstName, appUrl('/login'), appUrl('/forgot-password')),
         });
-      } else {
-        await sendVerification(existing);
+        return undefined;
       }
-      return;
+      return sendVerification(existing);
     }
 
     const passwordHash = await hashPassword(input.password);
@@ -139,10 +142,10 @@ export const authService = {
       });
     } catch (err) {
       // Two simultaneous registrations for the same email: the unique index wins; respond identically.
-      if ((err as { code?: number }).code === 11000) return;
+      if ((err as { code?: number }).code === 11000) return undefined;
       throw err;
     }
-    await sendVerification(user!);
+    return sendVerification(user!);
   },
 
   async verifyEmail(token: string): Promise<void> {
@@ -151,9 +154,9 @@ export const authService = {
   },
 
   /** Always succeeds from the caller's point of view (no account enumeration). */
-  async resendVerification(email: string): Promise<void> {
+  async resendVerification(email: string): Promise<string | undefined> {
     const user = await User.findOne({ email, emailVerifiedAt: null, status: 'active' });
-    if (user) await sendVerification(user);
+    return user ? sendVerification(user) : undefined;
   },
 
   async login(input: LoginInput, client: ClientInfo): Promise<IssuedSession> {
@@ -234,11 +237,13 @@ export const authService = {
   },
 
   /** Always succeeds from the caller's point of view (no account enumeration). */
-  async forgotPassword(email: string): Promise<void> {
+  async forgotPassword(email: string): Promise<string | undefined> {
     const user = await User.findOne({ email, status: 'active' });
-    if (!user) return;
+    if (!user) return undefined;
     const token = await createEmailToken(user._id, 'reset_password', RESET_TTL_MS);
-    void sendEmail({ to: user.email, ...resetPasswordTemplate(user.firstName, appUrl(`/reset-password?token=${token}`)) });
+    const url = appUrl(`/reset-password?token=${token}`);
+    void sendEmail({ to: user.email, ...resetPasswordTemplate(user.firstName, url) });
+    return url;
   },
 
   /**

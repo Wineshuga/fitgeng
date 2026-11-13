@@ -11,6 +11,7 @@ import { getErrorMessage } from '@/components/ui/QueryState';
 import { safeNextPath } from '@/lib/auth/redirect';
 import { apiErrorCode, validateForm, type FieldErrors } from '@/utils/forms';
 import { useLoginMutation, useResendVerificationMutation } from '../api';
+import { DevEmailLink } from './DevEmailLink';
 
 export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
@@ -47,7 +48,12 @@ export function LoginForm({ next }: { next?: string }) {
         <Alert tone="info">
           <p>Please verify your email address first. Check your inbox for the link.</p>
           {resendState.isSuccess ? (
-            <p className="mt-2 font-medium">We&apos;ve sent a new verification link.</p>
+            <>
+              <p className="mt-2 font-medium">We&apos;ve sent a new verification link.</p>
+              <div className="mt-3">
+                <DevEmailLink href={resendState.data?.devLink} label="Open the verification link" />
+              </div>
+            </>
           ) : (
             <button
               type="button"

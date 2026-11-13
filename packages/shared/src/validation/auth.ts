@@ -59,6 +59,16 @@ export interface AuthUserDto {
   emailVerified: boolean;
 }
 
+/**
+ * Response of register, resend-verification and forgot-password.
+ * `devLink` is the link the email contains. It's present ONLY in development,
+ * when emails aren't really sent, and never in production.
+ */
+export interface AuthMessageResponse {
+  message: string;
+  devLink?: string;
+}
+
 export interface AuthTokenResponse {
   /** Short-lived Bearer token. Keep it in memory only, never in storage. */
   accessToken: string;

@@ -9,10 +9,11 @@ import { Alert } from '@/components/ui/Alert';
 import { getErrorMessage } from '@/components/ui/QueryState';
 import { validateForm } from '@/utils/forms';
 import { useForgotPasswordMutation, useResetPasswordMutation } from '../api';
+import { DevEmailLink } from './DevEmailLink';
 
 /** Requests a reset link. The response is the same whether or not the email exists. */
 export function ForgotPasswordForm() {
-  const [forgot, { isLoading, isSuccess, error }] = useForgotPasswordMutation();
+  const [forgot, { isLoading, isSuccess, error, data }] = useForgotPasswordMutation();
   const [email, setEmail] = useState('');
   const [fieldError, setFieldError] = useState<string>();
 
@@ -26,9 +27,12 @@ export function ForgotPasswordForm() {
 
   if (isSuccess) {
     return (
-      <Alert tone="success">
-        If an account exists for <strong>{email.trim().toLowerCase()}</strong>, we&apos;ve sent a link to reset your password. It expires in 1 hour.
-      </Alert>
+      <div className="flex flex-col gap-4">
+        <Alert tone="success">
+          If an account exists for <strong>{email.trim().toLowerCase()}</strong>, we&apos;ve sent a link to reset your password. It expires in 1 hour.
+        </Alert>
+        <DevEmailLink href={data?.devLink} label="Open the password reset link" />
+      </div>
     );
   }
 

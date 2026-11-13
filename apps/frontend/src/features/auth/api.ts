@@ -1,8 +1,8 @@
-import type { ApiSuccess, AuthTokenResponse, LoginInput, RegisterInput } from '@fitgeng/shared';
+import type { ApiSuccess, AuthMessageResponse, AuthTokenResponse, LoginInput, RegisterInput } from '@fitgeng/shared';
 import { baseApi, CSRF_HEADERS } from '@/services/baseApi';
 import { credentialsReceived, loggedOut } from '@/store/authSlice';
 
-type Message = { message: string };
+type Message = AuthMessageResponse;
 const unwrap = <T,>(res: ApiSuccess<T>) => res.data;
 
 /** Auth endpoints. Tokens never touch storage: the access token goes to the auth slice, the refresh token stays in its HttpOnly cookie. */

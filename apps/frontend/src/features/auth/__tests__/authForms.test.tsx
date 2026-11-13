@@ -102,6 +102,19 @@ describe('RegisterForm', () => {
     expect(calls[0]!.body).toEqual({ firstName: 'Ada', lastName: 'Obi', email: 'ada@example.com', password: 'correct horse battery' });
   });
 
+  it('tells the user the service is down when the API is unreachable behind the proxy (the reported 500)', async () => {
+    globalThis.fetch = jest.fn(
+      async () => new Response('<!DOCTYPE html><html><body>Internal Server Error</body></html>', { status: 500, headers: { 'Content-Type': 'text/html' } }),
+    ) as unknown as typeof fetch;
+    renderWithProviders(<RegisterForm />);
+    await userEvent.type(screen.getByLabelText('First name'), 'Ada');
+    await userEvent.type(screen.getByLabelText('Last name'), 'Obi');
+    await userEvent.type(screen.getByLabelText('Email'), 'ada@example.com');
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse battery');
+    await userEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/temporarily unavailable/);
+  });
+
   it('maps API field errors onto the form', async () => {
     fetchRouter({
       'POST /auth/register': () => ({

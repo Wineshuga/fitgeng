@@ -49,7 +49,16 @@ If a port is already in use on your machine (e.g. `ports are not available ... 6
 
 Source folders are bind-mounted, so edits hot-reload. In the container, the Next.js dev server uses webpack with polling, because Turbopack misses file changes on Windows/macOS bind mounts.
 
-After dependencies change (e.g. a pull that touches `package.json`), recreate the containers' `node_modules` volumes with `docker compose up -d --build --renew-anon-volumes`. Otherwise Compose reuses the old volume and you'll see errors like `next: not found`.
+After dependencies change (e.g. a pull that touches `package.json`), recreate the containers' `node_modules` volumes with `docker compose up -d --build --renew-anon-volumes`. Otherwise Compose reuses the old volume and you'll see errors like `next: not found` or `Cannot find module 'argon2'`.
+
+**After editing `.env`, run `docker compose up -d`.** Containers read `.env` when they are created, so restarting them (or Docker Desktop restarting them) keeps the old values. If the API is unhealthy, check `docker compose logs backend`: it refuses to start with a clear message when a required variable such as `JWT_ACCESS_SECRET` is missing. The frontend then reports "The service is temporarily unavailable".
+
+**Email in development:** with `EMAIL_PROVIDER=log` (the default), emails aren't sent. Instead:
+
+- After registering, resending a verification link or using "Forgot password", the page shows a clickable **"Development only"** box with the link the email would contain.
+- The links are also printed in the API log: `docker compose logs backend | grep -E "verify-email|reset-password"`
+
+This only works in development. The API includes the link only when not in production and emails aren't really sent, and production frontend builds never render it. Set `EMAIL_PROVIDER=sendgrid` (with `SENDGRID_API_KEY`) to send real emails.
 
 MongoDB runs as a single-node replica set (required for transactions). Its health check initialises the set on first start.
 

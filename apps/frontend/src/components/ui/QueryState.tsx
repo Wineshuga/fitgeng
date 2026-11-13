@@ -13,7 +13,14 @@ export function getErrorMessage(error: FetchBaseQueryError | SerializedError | u
   if ('status' in error) {
     if (error.status === 'FETCH_ERROR') return 'Unable to reach the server. Check your connection.';
     const body = error.data as Partial<ApiErrorBody> | undefined;
-    return body?.error?.message ?? 'Something went wrong.';
+    if (body?.error?.message) return body.error.message;
+    // A 5xx without the API's error envelope came from the proxy (Next/Nginx), not
+    // the API: the API is down or restarting.
+    const status = typeof error.status === 'number' ? error.status : 'originalStatus' in error ? error.originalStatus : 0;
+    if (status >= 500 || error.status === 'PARSING_ERROR') {
+      return 'The service is temporarily unavailable. Please try again in a moment.';
+    }
+    return 'Something went wrong.';
   }
   return error.message ?? 'Something went wrong.';
 }
